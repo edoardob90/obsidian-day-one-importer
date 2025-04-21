@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Events, FileManager, Vault } from 'obsidian';
 import { DayOneImporterSettings } from './main';
-import { DayOneItem } from './schema';
+import { DayOneItem, MediaObject } from './schema';
 import {
 	buildFileName,
 	ImportFailure,
@@ -146,68 +146,83 @@ function buildFileBody(
 		text.matchAll(/!\[]\(dayone-moment:\/audio\/([^)]+)\)/g)
 	);
 
-	// Replace the photos
-	if (photoMoments.length) {
-		for (const match of photoMoments) {
-			text = text.replace(match[0], buildMediaReplacement(item, match));
-		}
-	}
+	const pdfMoments = Array.from(
+		text.matchAll(/!\[]\(dayone-moment:\/pdfAttachment\/([^)]+)\)/g)
+	);
 
-	// Replace the videos
-	if (videoMoments.length) {
-		for (const match of videoMoments) {
-			text = text.replace(match[0], buildMediaReplacement(item, match));
-		}
-	}
+	const replacements = [
+		...photoMoments,
+		...videoMoments,
+		...audioMoments,
+		...pdfMoments,
+	].map((match) => buildMediaReplacement(item, match));
 
-	// Replace the audios
-	if (audioMoments.length) {
-		for (const match of audioMoments) {
-			text = text.replace(match[0], buildMediaReplacement(item, match));
-		}
+	if (replacements.length > 0) {
+		replacements.forEach((replacement) => {
+			text = text.replace(replacement.replace, replacement.with);
+		});
 	}
 
 	// Only resolve internal links if we have a UUID map
-	return Object.keys(uuidToFileName).length > 0
-		? resolveInternalLinks(text, uuidToFileName).text
-		: text;
+	text =
+		Object.keys(uuidToFileName).length > 0
+			? resolveInternalLinks(text, uuidToFileName).text
+			: text;
+
+	return text;
 }
 
 function buildMediaReplacement(item: DayOneItem, match: RegExpMatchArray) {
-	// Find the photo in the item's photos array
-	let mediaId = match[1];
+	// Define media collections with optional custom transform for audio
+	// Audio files:
+	// 	I tried a few different formats but Day One always seems to convert them to m4a
+	// 	May get some bug reports about this in the future if Day One isn't consistent
+	const mediaTypes: Array<{
+		collection?: MediaObject[];
+		fn?: (m: MediaObject) => MediaObject;
+	}> = [
+		{ collection: item.photos },
+		{ collection: item.videos },
+		{ collection: item.pdfAttachments },
+		{
+			collection: item.audios,
+			fn: (audio: MediaObject) => ({ ...audio, type: 'm4a' }),
+		},
+	];
 
-	if (mediaId.startsWith('/')) {
-		// For videos and audios with format /audio/abc-123
-		mediaId = mediaId.substring(mediaId.lastIndexOf('/') + 1);
-	}
+	// Find the media object in any of the collections
+	let mediaObj: MediaObject | null = null;
+	for (const { collection, fn = (media: MediaObject) => media } of mediaTypes) {
+		if (!collection) continue;
 
-	// Check if thumbnail image exists among photos
-	if (item.photos) {
-		const photo = item.photos.find((p) => p.identifier === mediaId);
-		if (photo) {
-			return `![](${photo.md5}.jpeg)`;
+		const found = collection.find((media) => media.identifier === match[1]);
+		console.log(`Found media with identifier ${found?.identifier}`);
+		if (found) {
+			mediaObj = fn(found);
+			break;
 		}
 	}
 
-	// Check for videos
-	if (item.videos) {
-		const video = item.videos.find((v) => v.identifier === mediaId);
-		if (video) {
-			// For videos, use the MD5 with mp4 extension
-			return `![](${video.md5}.mp4)`;
-		}
+	// Create markdown link if media was found
+	if (mediaObj) {
+		// Ensure we have a type value, default to extension-less format if not provided
+		const mediaFileName = mediaObj.type
+			? `${mediaObj.md5}.${mediaObj.type}`
+			: mediaObj.md5;
+
+		return {
+			replace: match[0],
+			with: `![](${mediaFileName})`,
+		};
 	}
 
-	// Check for audios
-	if (item.audios) {
-		const audio = item.audios.find((a) => a.identifier === mediaId);
-		if (audio) {
-			// For audios, use the MD5 with m4a extension
-			return `![](${audio.md5}.m4a)`;
-		}
-	}
+	// Log error and return unchanged if no media found
+	console.error(
+		`Could not find media with identifier ${match[1]} in entry ${item.uuid}`
+	);
 
-	// If media not found, return the original match
-	return match[0];
+	return {
+		replace: match[0],
+		with: match[0],
+	};
 }
