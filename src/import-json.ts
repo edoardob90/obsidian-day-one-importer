@@ -134,7 +134,11 @@ export async function importJson(
 	}
 }
 
-function buildFileBody(
+/**
+ * Builds the file body for a Day One entry
+ * Cleans up text from unwanted characters or sequences
+ */
+export function buildFileBody(
 	item: DayOneItem,
 	uuidToFileName: Record<string, string>
 ): string {
