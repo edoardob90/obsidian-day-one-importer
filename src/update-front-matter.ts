@@ -123,12 +123,12 @@ export async function writeFrontMatter(
 	fileManager: FileManager
 ) {
 	await fileManager.processFrontMatter(file, (frontMatter) => {
-		frontMatter['creationDate'] = moment
-			.utc(item.creationDate)
-			.format('YYYY-MM-DDTHH:mm');
-		frontMatter['modifiedDate'] = moment
-			.utc(item.modifiedDate)
-			.format('YYYY-MM-DDTHH:mm');
+		frontMatter['creationDate'] = moment(item.creationDate).format(
+			'YYYY-MM-DDTHH:mm'
+		);
+		frontMatter['modifiedDate'] = moment(item.modifiedDate).format(
+			'YYYY-MM-DDTHH:mm'
+		);
 		frontMatter['uuid'] = item.uuid;
 		if (item.isAllDay) {
 			frontMatter['isAllDay'] = true;

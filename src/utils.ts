@@ -24,11 +24,11 @@ export function buildFileName(
 	if (settings.dateBasedFileNames) {
 		if (item.isAllDay) {
 			return normalizePath(
-				`${moment.utc(item.creationDate).format(settings.dateBasedAllDayFileNameFormat)}.md`
+				`${moment(item.creationDate).format(settings.dateBasedAllDayFileNameFormat)}.md`
 			);
 		} else {
 			return normalizePath(
-				`${moment.utc(item.creationDate).format(settings.dateBasedFileNameFormat)}.md`
+				`${moment(item.creationDate).format(settings.dateBasedFileNameFormat)}.md`
 			);
 		}
 	} else {
