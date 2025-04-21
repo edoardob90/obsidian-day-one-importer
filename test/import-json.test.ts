@@ -62,6 +62,7 @@ describe('importJson', () => {
 			getFileByPath: jest.fn(),
 			read: jest.fn(),
 			create: jest.fn(),
+			createFolder: jest.fn(),
 		} as unknown as jest.Mocked<Vault>;
 		fileManager = {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +134,79 @@ describe('importJson', () => {
 		expect(vault.getAbstractFileByPath).toBeCalledWith(
 			'testDir/testInput.json'
 		);
+	});
+
+	test('should create output directory if it does not exist', async () => {
+		vault.getAbstractFileByPath.mockImplementation((path: string) => {
+			if (path === 'testDir') {
+				return { children: [fakeJsonFile] } as unknown as TFolder;
+			}
+			if (path === 'testDir/fakeFile.json') {
+				return fakeJsonFile;
+			}
+			return null;
+		});
+		vault.createFolder.mockResolvedValue({} as unknown as TFolder);
+		vault.read.mockImplementation(() => {
+			return Promise.resolve(
+				JSON.stringify({
+					entries: [mockEntry],
+				})
+			);
+		});
+
+		await importJson(
+			vault,
+			{
+				...DEFAULT_SETTINGS,
+				inDirectory: 'testDir',
+				inFileName: 'fakeFile.json',
+			},
+			fileManager,
+			importEvents,
+			mockUuidMapStore
+		);
+
+		expect(vault.createFolder).toHaveBeenCalledWith(
+			DEFAULT_SETTINGS.outDirectory
+		);
+	});
+
+	test('should not create output directory if it already exists', async () => {
+		vault.getAbstractFileByPath.mockImplementation((path: string) => {
+			if (path === 'testDir') {
+				return { children: [fakeJsonFile] } as unknown as TFolder;
+			}
+			if (path === 'testDir/fakeFile.json') {
+				return fakeJsonFile;
+			}
+			if (path === DEFAULT_SETTINGS.outDirectory) {
+				return { children: [] } as unknown as TFolder;
+			}
+			return null;
+		});
+		vault.createFolder.mockResolvedValue({} as unknown as TFolder);
+		vault.read.mockImplementation(() => {
+			return Promise.resolve(
+				JSON.stringify({
+					entries: [mockEntry],
+				})
+			);
+		});
+
+		await importJson(
+			vault,
+			{
+				...DEFAULT_SETTINGS,
+				inDirectory: 'testDir',
+				inFileName: 'fakeFile.json',
+			},
+			fileManager,
+			importEvents,
+			mockUuidMapStore
+		);
+
+		expect(vault.createFolder).not.toHaveBeenCalled();
 	});
 
 	test('should error if file name has already been used in this import', async () => {

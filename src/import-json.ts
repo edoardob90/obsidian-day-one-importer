@@ -59,6 +59,12 @@ export async function importJson(
 			});
 		}
 
+		// Ensure output directory exists
+		if (!vault.getAbstractFileByPath(settings.outDirectory)) {
+			console.log(`Creating output directory: ${settings.outDirectory}`);
+			await vault.createFolder(settings.outDirectory);
+		}
+
 		// Process each entry (create notes)
 		const fileNames = new Set();
 		let successCount = 0;
