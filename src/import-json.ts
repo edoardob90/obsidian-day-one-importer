@@ -138,7 +138,13 @@ function buildFileBody(
 	item: DayOneItem,
 	uuidToFileName: Record<string, string>
 ): string {
-	let text = `${(item.text as string).replace(/\\/gm, '')}`;
+	// Clean up text by removing unwanted characters and sequences
+	let text = `${(item.text as string)
+		.replace(/\\/gm, '')
+		.replace(/```\s+```/gm, '')
+		.replace(/\u2028/g, '\n')
+		.replace(/\u1C6A/g, '\n\n')
+		.replace(/\u200b/g, '')}`;
 
 	const photoMoments = Array.from(
 		text.matchAll(/!\[]\(dayone-moment:\/\/([^)]+)\)/g)
