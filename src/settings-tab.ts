@@ -233,8 +233,8 @@ export class SettingsTab extends PluginSettingTab {
 			.setName('Start the import process')
 			.addProgressBar((pb) => {
 				pb.setValue(0);
-				this.plugin.percentageUpdateRef = this.plugin.importEvents.on(
-					'percentage-update',
+				this.plugin.percentageImportRef = this.plugin.importEvents.on(
+					'percentage-import',
 					(newPercentage: number) => {
 						pb.setValue(newPercentage);
 					}

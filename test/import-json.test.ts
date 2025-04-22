@@ -762,27 +762,27 @@ describe('importJson', () => {
 
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			1,
-			'percentage-update',
+			'percentage-import',
 			20
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			2,
-			'percentage-update',
+			'percentage-import',
 			40
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			3,
-			'percentage-update',
+			'percentage-import',
 			60
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			4,
-			'percentage-update',
+			'percentage-import',
 			80
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			5,
-			'percentage-update',
+			'percentage-import',
 			100
 		);
 	});
@@ -937,27 +937,27 @@ describe('importJson', () => {
 
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			1,
-			'percentage-update',
+			'percentage-import',
 			20
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			2,
-			'percentage-update',
+			'percentage-import',
 			40
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			3,
-			'percentage-update',
+			'percentage-import',
 			60
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			4,
-			'percentage-update',
+			'percentage-import',
 			80
 		);
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
 			5,
-			'percentage-update',
+			'percentage-import',
 			100
 		);
 	});

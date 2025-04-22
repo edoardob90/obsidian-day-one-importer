@@ -110,7 +110,7 @@ export async function importJson(
 				}
 			}
 			const globalProgress = ((index + 1) / allEntries.length) * 100;
-			importEvents.trigger('percentage-update', globalProgress);
+			importEvents.trigger('percentage-import', globalProgress);
 		}
 
 		// Persist UUID map if needed

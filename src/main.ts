@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 export default class DayOneImporter extends Plugin {
 	settings: DayOneImporterSettings;
 	importEvents = new Events();
+	percentageImportRef: EventRef;
 	percentageUpdateRef: EventRef;
 	uuidMapStore: UuidMapStoreImpl;
 
@@ -51,6 +52,7 @@ export default class DayOneImporter extends Plugin {
 
 	onunload() {
 		this.importEvents.offref(this.percentageUpdateRef);
+		this.importEvents.offref(this.percentageImportRef);
 	}
 
 	async loadSettings() {
