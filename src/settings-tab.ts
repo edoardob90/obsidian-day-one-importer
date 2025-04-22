@@ -7,6 +7,7 @@ import {
 	ButtonComponent,
 } from 'obsidian';
 import DayOneImporter from './main';
+import { TagStyle } from './main';
 import { importJson } from './import-json';
 import { updateFrontMatter } from './update-front-matter';
 import { isIllegalFileName, ILLEGAL_FILENAME_CHARACTERS } from './utils';
@@ -58,7 +59,7 @@ export class SettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Out directory')
-			.setDesc('Directory to create imported files in')
+			.setDesc('Directory to create imported files in.')
 			.addText((text) =>
 				text
 					.setPlaceholder('day-one-out')
@@ -72,7 +73,7 @@ export class SettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Ignore existing files')
 			.setDesc(
-				'If disabled then conflicting file names will be logged as failures, otherwise they will be ignored'
+				'If disabled then conflicting file names will be logged as failures, otherwise they will be ignored.'
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -84,16 +85,38 @@ export class SettingsTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName('Tag style')
+			.setDesc(
+				`Obsidian doesn't support tags with spaces. 
+				You can choose the tag style for tags in frontmatter. 
+				If you leave them as-is, you might end up with multi-word tags split into separate tags.`
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('', 'Leave as-is')
+					.addOption('camelCase', 'camelCase')
+					.addOption('PascalCase', 'PascalCase')
+					.addOption('snake_case', 'snake_case')
+					.addOption('kebab-case', 'kebab-case')
+					.setValue(this.plugin.settings.tagStyle ?? '')
+					.onChange(async (value) => {
+						this.plugin.settings.tagStyle =
+							value === '' ? undefined : (value as TagStyle);
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
 			.setName('Internal links')
 			.setDesc(
-				'Enable/disable replacing Day One internal links (dayone://view?entryId=UUID) with Obsidian links'
+				'Enable/disable replacing Day One internal links (dayone://view?entryId=UUID) with Obsidian links.'
 			)
 			.setHeading();
 
 		new Setting(containerEl)
 			.setName('Enable internal links resolving')
 			.setDesc(
-				'When possible, Day One internal links will resolve across multiple imported journals'
+				'When possible, Day One internal links will resolve across multiple imported journals.'
 			)
 			.addToggle((toggle) =>
 				toggle

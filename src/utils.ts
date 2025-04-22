@@ -172,7 +172,13 @@ export async function collectDayOneEntries(
 		parsedFileData.entries.forEach((entry: unknown) => {
 			const parsedEntry = DayOneItemSchema.safeParse(entry);
 			if (parsedEntry.success) {
-				allEntries.push({ item: parsedEntry.data, fileName });
+				const item = parsedEntry.data;
+				if (item.tags && settings.tagStyle) {
+					item.tags = item.tags.map((tag) =>
+						transformTag(tag, settings.tagStyle)
+					);
+				}
+				allEntries.push({ item, fileName });
 			} else {
 				const entryId = (entry as DayOneItem)?.uuid;
 				const entryCreationDate = (entry as DayOneItem)?.creationDate;
@@ -192,4 +198,34 @@ export async function collectDayOneEntries(
 		allEntries,
 		allInvalidEntries,
 	};
+}
+
+/**
+ * Perform a tag-style conversion on the tag string.
+ */
+export function transformTag(tag: string, style?: string): string {
+	if (!style) return tag;
+	const words = tag.split(/\s+/);
+	switch (style) {
+		case 'camelCase':
+			return words
+				.map((word, index) =>
+					index === 0
+						? word.toLowerCase()
+						: word.charAt(0).toUpperCase() + word.slice(1)
+				)
+				.join('');
+		case 'PascalCase':
+			return words
+				.map(
+					(word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+				)
+				.join('');
+		case 'snake_case':
+			return words.map((word) => word.toLowerCase()).join('_');
+		case 'kebab-case':
+			return words.map((word) => word.toLowerCase()).join('-');
+		default:
+			return tag;
+	}
 }

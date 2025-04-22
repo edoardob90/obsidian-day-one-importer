@@ -1128,4 +1128,54 @@ describe('importJson', () => {
 			'df4233a9b96c90e84c44d766f99fc12c.pdf'
 		);
 	});
+
+	describe('transformTag', () => {
+		it.each([
+			['leave as-is', ['My Test Tag'], undefined],
+			['camelCase', ['myTestTag'], 'camelCase'],
+			['PascalCase', ['MyTestTag'], 'PascalCase'],
+			['snake_case', ['my_test_tag'], 'snake_case'],
+			['kebab-case', ['my-test-tag'], 'kebab-case'],
+		] as const)(
+			"should transform tags as '%s'",
+			async (_label, expected, style) => {
+				vault.getAbstractFileByPath.mockImplementation((path: string) => {
+					if (path === 'day-one-in') {
+						return { children: [fakeJsonFile] } as unknown as TFolder;
+					}
+					if (path === 'day-one-in/journal.json') {
+						return fakeJsonFile;
+					}
+					if (path === DEFAULT_SETTINGS.outDirectory) {
+						return { children: [] } as unknown as TFolder;
+					}
+					return null;
+				});
+				vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+				vault.read.mockResolvedValue(
+					JSON.stringify({
+						entries: [
+							{
+								...mockEntry,
+								tags: ['My Test Tag'],
+							},
+						],
+					})
+				);
+
+				await importJson(
+					vault,
+					{
+						...DEFAULT_SETTINGS,
+						tagStyle: style,
+					},
+					fileManager,
+					importEvents,
+					mockUuidMapStore
+				);
+
+				expect(frontmatterObjs[0].tags).toEqual(expected);
+			}
+		);
+	});
 });

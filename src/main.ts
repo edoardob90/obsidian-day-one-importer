@@ -4,6 +4,13 @@ import { UuidMapStoreImpl } from './uuid-map';
 import { ImportResult, resolveInternalLinks } from './utils';
 import moment from 'moment';
 
+export type TagStyle =
+	| 'camelCase'
+	| 'PascalCase'
+	| 'snake_case'
+	| 'kebab-case'
+	| undefined;
+
 export interface DayOneImporterSettings {
 	inDirectory: string;
 	inFileName?: string;
@@ -14,6 +21,7 @@ export interface DayOneImporterSettings {
 	ignoreExistingFiles: boolean;
 	separateCoordinateFields: boolean;
 	enableInternalLinks: boolean;
+	tagStyle?: TagStyle;
 }
 
 export const DEFAULT_SETTINGS: DayOneImporterSettings = {
@@ -26,6 +34,7 @@ export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 	ignoreExistingFiles: false,
 	separateCoordinateFields: false,
 	enableInternalLinks: false,
+	tagStyle: undefined,
 };
 
 export default class DayOneImporter extends Plugin {
