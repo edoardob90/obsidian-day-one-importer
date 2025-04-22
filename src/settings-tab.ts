@@ -248,9 +248,8 @@ export class SettingsTab extends PluginSettingTab {
 							this.app.vault,
 							this.plugin.settings,
 							this.app.fileManager,
-							this.plugin.importEvents
-							// TODO
-							// this.plugin.uuidMapStore
+							this.plugin.importEvents,
+							this.plugin.uuidMapStore
 						);
 						await this.plugin.handleImportResult(res, 'import');
 					} catch (err) {
