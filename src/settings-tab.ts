@@ -84,6 +84,13 @@ export class SettingsTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName('Internal links')
+			.setDesc(
+				'Enable/disable replacing Day One internal links (dayone://view?entryId=UUID) with Obsidian links'
+			)
+			.setHeading();
+
+		new Setting(containerEl)
 			.setName('Enable internal links resolving')
 			.setDesc(
 				'When possible, Day One internal links will resolve across multiple imported journals'
