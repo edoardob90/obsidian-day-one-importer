@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { IANAZone } from 'luxon';
 
 export const MediaObjectSchema = z.object({
 	identifier: z.string(),
@@ -11,6 +12,10 @@ export type MediaObject = z.infer<typeof MediaObjectSchema>;
 export const DayOneItemSchema = z.object({
 	modifiedDate: z.string().datetime(),
 	creationDate: z.string().datetime(),
+	timeZone: z.string().refine((tz) => IANAZone.isValidZone(tz), {
+		message: 'Invalid IANA timezone',
+	}),
+	localizedDate: z.string().nullish(),
 	isAllDay: z.boolean().optional(),
 	isPinned: z.boolean().optional(),
 	starred: z.boolean().optional(),

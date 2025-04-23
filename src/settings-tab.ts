@@ -5,6 +5,7 @@ import {
 	PluginSettingTab,
 	Setting,
 	ButtonComponent,
+	sanitizeHTMLToDom,
 } from 'obsidian';
 import DayOneImporter from './main';
 import { TagStyle } from './main';
@@ -85,23 +86,21 @@ export class SettingsTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Tag style')
+			.setName('Localized date')
 			.setDesc(
-				`Obsidian doesn't support tags with spaces. 
-				You can choose the tag style for tags in frontmatter. 
-				If you leave them as-is, you might end up with multi-word tags split into separate tags.`
+				'Choose which time zone to use for the localized date. This setting affects both the frontmatter field and the file name (if date-based file names are enabled).'
 			)
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption('', 'Leave as-is')
-					.addOption('camelCase', 'camelCase')
-					.addOption('PascalCase', 'PascalCase')
-					.addOption('snake_case', 'snake_case')
-					.addOption('kebab-case', 'kebab-case')
-					.setValue(this.plugin.settings.tagStyle ?? '')
+					.addOption('none', 'Ignore')
+					.addOption('event', 'Original event time zone')
+					.addOption('local', 'System local time zone')
+					.setValue(this.plugin.settings.localizedDateMode)
 					.onChange(async (value) => {
-						this.plugin.settings.tagStyle =
-							value === '' ? undefined : (value as TagStyle);
+						this.plugin.settings.localizedDateMode = value as
+							| 'none'
+							| 'event'
+							| 'local';
 						await this.plugin.saveSettings();
 					})
 			);
@@ -155,8 +154,11 @@ export class SettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Date-based file names (may cause collisions)')
 			.setDesc(
-				`Use entry's creation date as the file name. This may cause collisions and files to be overwritten if two entries have the same creation date/time.
-				If this option is disabled then the entry's UUID will be used as the file name. This guarantees no collisions.`
+				sanitizeHTMLToDom(
+					`Use entry's creation date as the file name. This may cause collisions and files to be overwritten if two entries have the same creation date/time.
+				If this option is disabled then the entry's UUID will be used as the file name. This guarantees no collisions.
+				Uses Luxon date formatting tokens (<a href='https://moment.github.io/luxon/#/formatting?id=table-of-tokens'>reference table</a>).`
+				)
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -172,7 +174,7 @@ export class SettingsTab extends PluginSettingTab {
 			.addMomentFormat((timeFormat) =>
 				timeFormat
 					.setValue(this.plugin.settings.dateBasedFileNameFormat.toString())
-					.setPlaceholder('YYYY-MM-DD HH:mm:ss')
+					.setPlaceholder('yyyy-MM-dd HH:mm:ss')
 					.onChange(async (value) => {
 						if (value !== '') {
 							if (isIllegalFileName(value)) {
@@ -195,7 +197,7 @@ export class SettingsTab extends PluginSettingTab {
 					.setValue(
 						this.plugin.settings.dateBasedAllDayFileNameFormat.toString()
 					)
-					.setPlaceholder('YYYY-MM-DD')
+					.setPlaceholder('yyyy-MM-dd')
 					.onChange(async (value) => {
 						if (value !== '') {
 							if (isIllegalFileName(value)) {
@@ -223,6 +225,28 @@ export class SettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.separateCoordinateFields)
 					.onChange(async (value) => {
 						this.plugin.settings.separateCoordinateFields = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Tag style')
+			.setDesc(
+				`Obsidian doesn't support tags with spaces. 
+				You can choose the tag style for tags in frontmatter. 
+				If you leave them as-is, you might end up with multi-word tags split into separate tags.`
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('', 'Leave as-is')
+					.addOption('camelCase', 'camelCase')
+					.addOption('PascalCase', 'PascalCase')
+					.addOption('snake_case', 'snake_case')
+					.addOption('kebab-case', 'kebab-case')
+					.setValue(this.plugin.settings.tagStyle ?? '')
+					.onChange(async (value) => {
+						this.plugin.settings.tagStyle =
+							value === '' ? undefined : (value as TagStyle);
 						await this.plugin.saveSettings();
 					})
 			);

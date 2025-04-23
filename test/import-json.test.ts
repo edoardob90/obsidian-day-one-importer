@@ -363,8 +363,8 @@ describe('importJson', () => {
 			{
 				...DEFAULT_SETTINGS,
 				dateBasedFileNames: true,
-				dateBasedFileNameFormat: 'YYYYMMDDHHmmssS',
-				dateBasedAllDayFileNameFormat: 'SssmmHHDDMMYYYY',
+				dateBasedFileNameFormat: 'yyyyMMddHHmmssS',
+				dateBasedAllDayFileNameFormat: 'SssmmHHddMMyyyy',
 			},
 			fileManager,
 			importEvents,
@@ -688,12 +688,12 @@ describe('importJson', () => {
 		});
 		expect(frontmatterObjs[0]).toEqual({
 			activity: 'Train',
-			creationDate: '2024-04-16T23:00',
+			creationDate: '2024-04-16T23:00:00Z',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
 			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55',
+			modifiedDate: '2024-04-19T21:55:51Z',
 			starred: true,
 			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
 		});
@@ -711,9 +711,9 @@ describe('importJson', () => {
 			mtime: 1713563393000,
 		});
 		expect(frontmatterObjs[1]).toEqual({
-			creationDate: '2024-04-17T23:00',
+			creationDate: '2024-04-17T23:00:00Z',
 			isAllDay: true,
-			modifiedDate: '2024-04-19T21:49',
+			modifiedDate: '2024-04-19T21:49:53Z',
 			uuid: '1461153D91EC48C180C606C853FBFD83',
 		});
 
@@ -732,10 +732,10 @@ describe('importJson', () => {
 			mtime: 1713563332000,
 		});
 		expect(frontmatterObjs[2]).toEqual({
-			creationDate: '2024-04-19T21:48',
+			creationDate: '2024-04-19T21:48:36Z',
 			location: 'Dundas Castle, Edinburgh, United Kingdom',
 			coordinates: `55.97501754760742,-3.4143447875976562`,
-			modifiedDate: '2024-04-19T21:48',
+			modifiedDate: '2024-04-19T21:48:52Z',
 			pinned: true,
 			uuid: '876E72B228F847379F296B1698CA3F61',
 		});
@@ -753,9 +753,9 @@ describe('importJson', () => {
 			mtime: 1713563820000,
 		});
 		expect(frontmatterObjs[3]).toEqual({
-			creationDate: '2024-04-19T21:55',
+			creationDate: '2024-04-19T21:55:53Z',
 			location: 'London Eye, London, United Kingdom',
-			modifiedDate: '2024-04-19T21:57',
+			modifiedDate: '2024-04-19T21:57:00Z',
 			uuid: '479270F4CAD1429AB1564DB34D0FE337',
 			coordinates: `51.503360748291016,-0.11951349675655365`,
 		});
@@ -863,12 +863,12 @@ describe('importJson', () => {
 		});
 		expect(frontmatterObjs[0]).toEqual({
 			activity: 'Train',
-			creationDate: '2024-04-16T23:00',
+			creationDate: '2024-04-16T23:00:00Z',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
 			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55',
+			modifiedDate: '2024-04-19T21:55:51Z',
 			starred: true,
 			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
 		});
@@ -886,9 +886,9 @@ describe('importJson', () => {
 			mtime: 1713563393000,
 		});
 		expect(frontmatterObjs[1]).toEqual({
-			creationDate: '2024-04-17T23:00',
+			creationDate: '2024-04-17T23:00:00Z',
 			isAllDay: true,
-			modifiedDate: '2024-04-19T21:49',
+			modifiedDate: '2024-04-19T21:49:53Z',
 			uuid: '1461153D91EC48C180C606C853FBFD83',
 		});
 
@@ -907,10 +907,10 @@ describe('importJson', () => {
 			mtime: 1713563332000,
 		});
 		expect(frontmatterObjs[2]).toEqual({
-			creationDate: '2024-04-19T21:48',
+			creationDate: '2024-04-19T21:48:36Z',
 			location: 'Dundas Castle, Edinburgh, United Kingdom',
 			coordinates: `55.97501754760742,-3.4143447875976562`,
-			modifiedDate: '2024-04-19T21:48',
+			modifiedDate: '2024-04-19T21:48:52Z',
 			pinned: true,
 			uuid: '876E72B228F847379F296B1698CA3F61',
 		});
@@ -928,9 +928,9 @@ describe('importJson', () => {
 			mtime: 1713563820000,
 		});
 		expect(frontmatterObjs[3]).toEqual({
-			creationDate: '2024-04-19T21:55',
+			creationDate: '2024-04-19T21:55:53Z',
 			location: 'London Eye, London, United Kingdom',
-			modifiedDate: '2024-04-19T21:57',
+			modifiedDate: '2024-04-19T21:57:00Z',
 			uuid: '479270F4CAD1429AB1564DB34D0FE337',
 			coordinates: `51.503360748291016,-0.11951349675655365`,
 		});

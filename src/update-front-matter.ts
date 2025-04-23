@@ -8,7 +8,6 @@ import {
 	ImportInvalidEntry,
 	ImportResult,
 } from './utils';
-import moment from 'moment';
 
 export async function updateFrontMatter(
 	vault: Vault,
@@ -114,26 +113,35 @@ export async function writeFrontMatter(
 	fileManager: FileManager
 ) {
 	await fileManager.processFrontMatter(file, (frontMatter) => {
-		frontMatter['creationDate'] =
-			`${moment(item.creationDate).format('YYYY-MM-DD')}T${moment(item.creationDate).format('HH:mm')}`;
-		frontMatter['modifiedDate'] =
-			`${moment(item.modifiedDate).format('YYYY-MM-DD')}T${moment(item.modifiedDate).format('HH:mm')}`;
+		frontMatter['creationDate'] = item.creationDate;
+
+		frontMatter['modifiedDate'] = item.modifiedDate;
+
+		if (item.localizedDate) {
+			frontMatter['localizedDate'] = item.localizedDate;
+		}
+
 		frontMatter['uuid'] = item.uuid;
+
 		if (item.isAllDay) {
 			frontMatter['isAllDay'] = true;
 		}
+
 		if (item.isPinned) {
 			frontMatter['pinned'] = true;
 		}
 		if (item.starred) {
 			frontMatter['starred'] = true;
 		}
+
 		if (item.tags?.length ?? 0 > 0) {
 			frontMatter['tags'] = item.tags;
 		}
+
 		if (item.userActivity?.activityName) {
 			frontMatter['activity'] = item.userActivity.activityName;
 		}
+
 		if (item.location) {
 			if (
 				item.location?.placeName &&

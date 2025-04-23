@@ -160,8 +160,8 @@ describe('updateFrontMatter', () => {
 			{
 				...DEFAULT_SETTINGS,
 				dateBasedFileNames: true,
-				dateBasedFileNameFormat: 'YYYYMMDDHHmmssS',
-				dateBasedAllDayFileNameFormat: 'SssmmHHDDMMYYYY',
+				dateBasedFileNameFormat: 'yyyyMMddHHmmssS',
+				dateBasedAllDayFileNameFormat: 'SssmmHHddMMyyyy',
 			},
 			fileManager,
 			importEvents
@@ -252,12 +252,12 @@ describe('updateFrontMatter', () => {
 
 		expect(frontmatterObjs[0]).toEqual({
 			activity: 'Train',
-			creationDate: '2024-04-16T23:00',
+			creationDate: '2024-04-16T23:00:00Z',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
 			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55',
+			modifiedDate: '2024-04-19T21:55:51Z',
 			starred: true,
 			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
 		});
@@ -288,13 +288,13 @@ describe('updateFrontMatter', () => {
 
 		expect(frontmatterObjs[0]).toEqual({
 			activity: 'Train',
-			creationDate: '2024-04-16T23:00',
+			creationDate: '2024-04-16T23:00:00Z',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
 			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			latitude: 53.4276123046875,
 			longitude: -6.239171028137207,
-			modifiedDate: '2024-04-19T21:55',
+			modifiedDate: '2024-04-19T21:55:51Z',
 			starred: true,
 			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
 		});
@@ -336,12 +336,12 @@ describe('updateFrontMatter', () => {
 
 		expect(frontmatterObjs[0]).toEqual({
 			activity: 'Train',
-			creationDate: '2024-04-16T23:00',
+			creationDate: '2024-04-16T23:00:00Z',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
 			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55',
+			modifiedDate: '2024-04-19T21:55:51Z',
 			starred: true,
 			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
 		});

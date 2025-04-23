@@ -18,6 +18,7 @@ export interface DayOneImporterSettings {
 	dateBasedFileNames: boolean;
 	dateBasedFileNameFormat: string;
 	dateBasedAllDayFileNameFormat: string;
+	localizedDateMode: 'none' | 'event' | 'local';
 	ignoreExistingFiles: boolean;
 	separateCoordinateFields: boolean;
 	enableInternalLinks: boolean;
@@ -29,8 +30,9 @@ export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 	inFileName: 'journal.json',
 	outDirectory: 'day-one-out',
 	dateBasedFileNames: false,
-	dateBasedFileNameFormat: 'YYYY-MM-DD HHmmss',
-	dateBasedAllDayFileNameFormat: 'YYYY-MM-DD',
+	dateBasedFileNameFormat: 'yyyy-MM-dd HHmmss',
+	dateBasedAllDayFileNameFormat: 'yyyy-MM-dd',
+	localizedDateMode: 'none',
 	ignoreExistingFiles: false,
 	separateCoordinateFields: false,
 	enableInternalLinks: false,
