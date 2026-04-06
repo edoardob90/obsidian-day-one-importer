@@ -23,17 +23,23 @@ Tests **must** run with `TZ=UTC` (enforced in package.json and verified by `test
 ## Architecture
 
 ```
-main.ts (Plugin entry point, settings interface, lifecycle)
-├── settings-tab.ts (UI — triggers import/update/resolve actions)
+main.ts (Plugin entry point, settings, lifecycle, commands: import/resolve-links/normalize)
+├── settings-tab.ts (Config UI — no action buttons, all actions are commands)
 │   ├── import-json.ts (creates new .md files from JSON entries)
-│   ├── update-front-matter.ts (updates frontmatter on existing files)
-│   └── resolve-internal-links.ts (scans notes, resolves Day One links post-import)
-├── schema.ts (Zod validation for Day One JSON entries + media objects)
-├── utils.ts (shared: buildFileName, buildFileBody, resolveInternalLinks, collectDayOneEntries, tag transforms, type guards)
+│   ├── update-front-matter.ts (writeTargetFrontMatter: writes new-format frontmatter)
+│   └── normalize.ts (normalize entries command — scan, delete dupes, clean ghosts)
+├── schema.ts (Zod validation for Day One JSON entries + media objects + weather)
+├── utils.ts (shared: buildFileName, buildFileBody, resolveInternalLinks, collectDayOneEntries, tag/location/weather formatters, type guards)
 └── uuid-map.ts (persists UUID→filename map in plugin data for cross-import link resolution)
 ```
 
-**Key data flow:** JSON entries are validated with Zod (`schema.ts`), collected via `collectDayOneEntries()` (`utils.ts`), then each entry gets a markdown file created (`import-json.ts`) with frontmatter written via `processFrontMatter` (`update-front-matter.ts`). Internal Day One links (`dayone://view?entryId=UUID`) are resolved to Obsidian wiki-links using a persisted UUID map.
+**Key data flow:** JSON entries are validated with Zod (`schema.ts`), collected via `collectDayOneEntries()` (`utils.ts`), then each entry gets a markdown file created (`import-json.ts`) with frontmatter written via `writeTargetFrontMatter` (`update-front-matter.ts`). Internal Day One links (`dayone://view?entryId=UUID`) are resolved to Obsidian wiki-links using a persisted UUID map.
+
+**Plugin commands:** "Import from Day One", "Resolve internal links", "Normalize entries". All registered via `addCommand()` in `main.ts`.
+
+## Future Work
+
+- **Import from Everlog**: Not yet implemented. Will import Everlog journal entries.
 
 ## Testing Patterns
 

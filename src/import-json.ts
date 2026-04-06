@@ -1,14 +1,14 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Events, FileManager, Vault } from 'obsidian';
+import { Events, FileManager, normalizePath, Vault } from 'obsidian';
 import { DayOneImporterSettings } from './main';
 import {
 	buildFileName,
 	buildFileBody,
+	buildJournalTag,
 	ImportFailure,
 	ImportResult,
 	collectDayOneEntries,
 } from './utils';
-import { writeFrontMatter } from './update-front-matter';
+import { writeTargetFrontMatter } from './update-front-matter';
 import { UuidMapStore } from './uuid-map';
 
 export async function importJson(
@@ -36,15 +36,12 @@ export async function importJson(
 			};
 		}
 
-		// Only build UUID map if internal links are enabled
+		// Always build UUID map if store is available
 		let uuidToFileName: Record<string, string> = {};
-		const useInternalLinks = settings.enableInternalLinks && !!uuidMapStore;
-
-		if (useInternalLinks) {
+		if (uuidMapStore) {
 			try {
-				// Try to read an existing UUID map
-				uuidToFileName = await uuidMapStore!.read();
-			} catch (e) {
+				uuidToFileName = await uuidMapStore.read();
+			} catch {
 				uuidToFileName = {};
 				console.log('Failed to read UUID map, starting with an empty map.');
 			}
@@ -55,24 +52,26 @@ export async function importJson(
 			});
 		}
 
-		// Ensure output directory exists
-		if (!vault.getAbstractFileByPath(settings.outDirectory)) {
-			console.log(`Creating output directory: ${settings.outDirectory}`);
-			await vault.createFolder(settings.outDirectory);
+		// Ensure output directory exists (skip for vault root)
+		const cleanOutDir = settings.outDirectory.replace(/^\/+|\/+$/g, '');
+		if (cleanOutDir && !vault.getAbstractFileByPath(cleanOutDir)) {
+			console.log(`Creating output directory: ${cleanOutDir}`);
+			await vault.createFolder(cleanOutDir);
 		}
+
+		// Internal link resolution is still gated on the setting
+		const resolveLinks =
+			settings.enableInternalLinks && Object.keys(uuidToFileName).length > 0;
 
 		// Process each entry (create notes)
 		const fileNames = new Set();
 		let successCount = 0;
 		let ignoreCount = 0;
 		const failures: ImportFailure[] = [];
-		const totalEntries = allEntries.length + allInvalidEntries.length;
 
-		for (const [index, { item }] of allEntries.entries()) {
+		for (const [index, { item, fileName }] of allEntries.entries()) {
 			try {
-				const outFileName = useInternalLinks
-					? uuidToFileName[item.uuid]
-					: buildFileName(settings, item);
+				const outFileName = buildFileName(settings, item);
 
 				if (fileNames.has(outFileName)) {
 					throw new Error(
@@ -83,16 +82,32 @@ export async function importJson(
 				}
 
 				// Create the actual note file
+				const outDir = settings.outDirectory.replace(/^\/+|\/+$/g, '');
+				const outPath = normalizePath(
+					outDir ? `${outDir}/${outFileName}` : outFileName
+				);
 				const file = await vault.create(
-					`${settings.outDirectory}/${outFileName}`,
-					buildFileBody(item, useInternalLinks ? uuidToFileName : {}),
+					outPath,
+					buildFileBody(item, resolveLinks ? uuidToFileName : {}),
 					{
 						ctime: new Date(item.creationDate).getTime(),
 						mtime: new Date(item.modifiedDate).getTime(),
 					}
 				);
 
-				await writeFrontMatter(file, item, settings, fileManager);
+				const journalTag = buildJournalTag(
+					fileName,
+					item,
+					settings.journalTagPrefix
+				);
+				await writeTargetFrontMatter(
+					file,
+					item,
+					settings,
+					fileManager,
+					journalTag,
+					[]
+				);
 				successCount++;
 			} catch (e) {
 				const message = e instanceof Error ? e.message : String(e);
@@ -113,13 +128,13 @@ export async function importJson(
 			importEvents.trigger('percentage-import', globalProgress);
 		}
 
-		// Persist UUID map if needed
-		if (useInternalLinks) {
-			await uuidMapStore!.write(uuidToFileName);
+		// Always persist UUID map
+		if (uuidMapStore) {
+			await uuidMapStore.write(uuidToFileName);
 		}
 
 		return {
-			total: totalEntries,
+			total: allEntries.length + allInvalidEntries.length,
 			successCount,
 			ignoreCount,
 			failures,

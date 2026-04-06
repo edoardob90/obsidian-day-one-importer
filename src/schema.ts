@@ -35,6 +35,12 @@ export const DayOneItemSchema = z.object({
 			longitude: z.number(),
 		})
 		.optional(),
+	weather: z
+		.object({
+			temperatureCelsius: z.number().optional(),
+			conditionsDescription: z.string().optional(),
+		})
+		.optional(),
 	uuid: z.string(),
 	photos: z.array(MediaObjectSchema).optional(),
 	videos: z.array(MediaObjectSchema).optional(),

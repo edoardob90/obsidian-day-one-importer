@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { DEFAULT_SETTINGS } from '../src/main';
-import { Events, FileManager, TFile, Vault } from 'obsidian';
+import { FileManager, TFile } from 'obsidian';
 import {
 	afterEach,
 	beforeEach,
@@ -9,54 +9,34 @@ import {
 	jest,
 	test,
 } from '@jest/globals';
-import { updateFrontMatter } from '../src/update-front-matter';
-import * as testData from './__test_data__/day-one-in/Dev Journal.json';
-import * as testDataWithInvalidEntry from './__test_data__/day-one-in/Dev Journal One Invalid.json';
-import { ZodError } from 'zod';
+import { writeTargetFrontMatter } from '../src/update-front-matter';
+import { DayOneItem } from '../src/schema';
 
-const mockEntry = {
-	creationDevice: 'marcBook Pro',
-	isPinned: false,
-	editingTime: 10.006034016609192,
-	creationDeviceModel: 'MacBookPro18,3',
-	duration: 0,
-	text: 'testing 123',
-	creationOSVersion: '14.3.1',
-	uuid: '959E7A13B3B649D681DC573DB7E07967',
-	timeZone: 'Europe/London',
-	modifiedDate: '2024-04-21T22:46:02Z',
-	creationDeviceType: 'MacBook Pro',
-	creationOSName: 'macOS',
-	isAllDay: false,
-	richText:
-		'{"contents":[{"text":"testing 123"}],"meta":{"created":{"platform":"com.bloombuilt.dayone-mac","version":1552},"small-lines-removed":true,"version":1}}',
-	creationDate: '2024-04-21T22:45:51Z',
-	starred: false,
-};
+const makeItem = (overrides: Partial<DayOneItem> = {}): DayOneItem =>
+	({
+		creationDate: '2024-04-21T22:45:51Z',
+		modifiedDate: '2024-04-21T22:46:02Z',
+		timeZone: 'Europe/London',
+		uuid: '959E7A13B3B649D681DC573DB7E07967',
+		text: 'testing 123',
+		starred: false,
+		isAllDay: false,
+		...overrides,
+	}) as DayOneItem;
 
-describe('updateFrontMatter', () => {
-	let vault: jest.Mocked<Vault>;
+describe('writeTargetFrontMatter', () => {
 	let fileManager: jest.Mocked<FileManager>;
-	let importEvents: jest.Mocked<Events>;
 	let frontmatterObjs: any[] = [];
+	const fakeFile = {} as TFile;
 
 	beforeEach(() => {
-		vault = {
-			getFileByPath: jest.fn(),
-			read: jest.fn(),
-			create: jest.fn(),
-		} as unknown as jest.Mocked<Vault>;
 		fileManager = {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			processFrontMatter: (file: any, cb: any) => {
-				const frontMatter = {};
+				const frontMatter: Record<string, any> = {};
 				cb(frontMatter);
 				frontmatterObjs.push(frontMatter);
 			},
 		} as unknown as jest.Mocked<FileManager>;
-		importEvents = {
-			trigger: jest.fn(),
-		} as unknown as jest.Mocked<Events>;
 	});
 
 	afterEach(() => {
@@ -64,286 +44,191 @@ describe('updateFrontMatter', () => {
 		frontmatterObjs = [];
 	});
 
-	test('should error if no input file', () => {
-		vault.getFileByPath.mockReturnValue(null);
-
-		expect(() =>
-			updateFrontMatter(
-				vault,
-				{
-					...DEFAULT_SETTINGS,
-					inDirectory: 'testDir',
-					inFileName: 'testInput.json',
-				},
-				fileManager,
-				importEvents
-			)
-		).rejects.toThrowError('No file found');
-		expect(vault.getFileByPath).toBeCalledWith('testDir/testInput.json');
-	});
-
-	test('should error if file name has already been updated in this import', async () => {
-		vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
-		vault.read.mockResolvedValue(
-			JSON.stringify({
-				entries: [
-					{
-						...mockEntry,
-						uuid: 'abc123',
-					},
-					{
-						...mockEntry,
-						uuid: 'abc123',
-					},
-				],
-			})
-		);
-
-		const res = await updateFrontMatter(
-			vault,
+	test('writes basic frontmatter with date offset', async () => {
+		const item = makeItem();
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
 			DEFAULT_SETTINGS,
 			fileManager,
-			importEvents
+			'fakefile/2024/04',
+			[]
 		);
-		expect(res.failures).toHaveLength(1);
-		expect(res.failures[0].entry.uuid).toBe('abc123');
-		expect(res.failures[0].reason).toBe(
-			'A file named abc123.md has already been updated in this import'
-		);
+
+		expect(frontmatterObjs[0].date).toBe('2024-04-21T23:45:51+01:00');
+		expect(frontmatterObjs[0].modified).toBe('2024-04-21T23:46:02+01:00');
+		expect(frontmatterObjs[0].uuid).toBe('959E7A13B3B649D681DC573DB7E07967');
+		expect(frontmatterObjs[0].favorite).toBe(false);
 	});
 
-	test('should error if file cannot be found', async () => {
-		vault.getFileByPath.mockReturnValueOnce(jest.fn() as unknown as TFile);
-		vault.getFileByPath.mockReturnValue(null);
-		vault.read.mockResolvedValue(
-			JSON.stringify({
-				entries: [
-					{
-						...mockEntry,
-						uuid: 'abc123',
-					},
-				],
-			})
-		);
-
-		const res = await updateFrontMatter(
-			vault,
+	test('omits modified when equal to creationDate', async () => {
+		const item = makeItem({
+			modifiedDate: '2024-04-21T22:45:51Z',
+		});
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
 			DEFAULT_SETTINGS,
 			fileManager,
-			importEvents
+			'fakefile/2024/04',
+			[]
 		);
-		expect(res.failures).toHaveLength(1);
-		expect(res.failures[0].entry.uuid).toBe('abc123');
-		expect(res.failures[0].reason).toBe('Could not find file abc123.md');
+
+		expect(frontmatterObjs[0].date).toBe('2024-04-21T23:45:51+01:00');
+		expect(frontmatterObjs[0].modified).toBeUndefined();
 	});
 
-	test('should use provided date format to name files when date-based naming is enabled', async () => {
-		vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
-		vault.read.mockResolvedValue(
-			JSON.stringify({
-				entries: [
-					{
-						...mockEntry,
-						creationDate: '2024-04-19T21:55:53Z',
-					},
-					{
-						...mockEntry,
-						creationDate: '2023-03-11T11:15:33Z',
-						isAllDay: true,
-					},
-				],
-			})
-		);
-
-		const result = await updateFrontMatter(
-			vault,
-			{
-				...DEFAULT_SETTINGS,
-				dateBasedFileNames: true,
-				dateBasedFileNameFormat: 'yyyyMMddHHmmssS',
-				dateBasedAllDayFileNameFormat: 'SssmmHHddMMyyyy',
+	test('writes coordinates as string when separateCoordinateFields is false', async () => {
+		const item = makeItem({
+			location: {
+				placeName: 'London Eye',
+				localityName: 'London',
+				country: 'United Kingdom',
+				latitude: 51.503,
+				longitude: -0.119,
 			},
-			fileManager,
-			importEvents
-		);
-
-		// Returned object
-		expect(result).toEqual({
-			total: 2,
-			successCount: 2,
-			ignoreCount: 0,
-			failures: [],
-			invalidEntries: [],
 		});
-
-		expect(vault.getFileByPath.mock.calls[1][0]).toBe(
-			'day-one-out/202404192155530.md'
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
+			{ ...DEFAULT_SETTINGS, separateCoordinateFields: false },
+			fileManager,
+			'fakefile/2024/04',
+			[]
 		);
-		expect(vault.getFileByPath.mock.calls[2][0]).toBe(
-			'day-one-out/033151111032023.md'
+
+		expect(frontmatterObjs[0].coordinates).toBe('51.503,-0.119');
+		expect(frontmatterObjs[0].location).toBe(
+			'London Eye, London, United Kingdom'
 		);
 	});
 
-	test('should use UUID as file name when date-based naming is not enabled', async () => {
-		vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
-		vault.read.mockResolvedValue(
-			JSON.stringify({
-				entries: [
-					{
-						...mockEntry,
-						creationDate: '2024-04-19T21:55:53Z',
-						uuid: 'abc123',
-					},
-					{
-						...mockEntry,
-						creationDate: '2023-03-11T11:15:33Z',
-						isAllDay: true,
-						uuid: 'def456',
-					},
-				],
-			})
-		);
-
-		const result = await updateFrontMatter(
-			vault,
-			{
-				...DEFAULT_SETTINGS,
-				dateBasedFileNames: false,
+	test('writes coordinates as array when separateCoordinateFields is true', async () => {
+		const item = makeItem({
+			location: {
+				placeName: 'London Eye',
+				localityName: 'London',
+				country: 'United Kingdom',
+				latitude: 51.503,
+				longitude: -0.119,
 			},
-			fileManager,
-			importEvents
-		);
-
-		// Returned object
-		expect(result).toEqual({
-			total: 2,
-			successCount: 2,
-			ignoreCount: 0,
-			failures: [],
-			invalidEntries: [],
 		});
-
-		expect(vault.getFileByPath.mock.calls[0][0]).toBe(
-			'day-one-in/journal.json'
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
+			{ ...DEFAULT_SETTINGS, separateCoordinateFields: true },
+			fileManager,
+			'fakefile/2024/04',
+			[]
 		);
-		expect(vault.getFileByPath.mock.calls[1][0]).toBe('day-one-out/abc123.md');
-		expect(vault.getFileByPath.mock.calls[2][0]).toBe('day-one-out/def456.md');
+
+		expect(frontmatterObjs[0].coordinates).toEqual(['51.503', '-0.119']);
+		expect(frontmatterObjs[0].location).toBe(
+			'London Eye, London, United Kingdom'
+		);
 	});
 
-	test('successful update', async () => {
-		vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
-		vault.read.mockResolvedValue(JSON.stringify(testData));
-
-		const result = await updateFrontMatter(
-			vault,
+	test('omits location and coordinates when no location data', async () => {
+		const item = makeItem();
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
 			DEFAULT_SETTINGS,
 			fileManager,
-			importEvents
+			'fakefile/2024/04',
+			[]
 		);
 
-		// Returned object
-		expect(result).toEqual({
-			total: 5,
-			successCount: 5,
-			ignoreCount: 0,
-			failures: [],
-			invalidEntries: [],
-		});
-
-		expect(frontmatterObjs[0]).toEqual({
-			activity: 'Train',
-			creationDate: '2024-04-16T23:00:00Z',
-			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
-			isAllDay: true,
-			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
-			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55:51Z',
-			starred: true,
-			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
-		});
+		expect(frontmatterObjs[0].coordinates).toBeUndefined();
+		expect(frontmatterObjs[0].location).toBeUndefined();
 	});
 
-	test('should use separate coordinate fields if enabled', async () => {
-		vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
-		vault.read.mockResolvedValue(JSON.stringify(testData));
-
-		const result = await updateFrontMatter(
-			vault,
-			{
-				...DEFAULT_SETTINGS,
-				separateCoordinateFields: true,
+	test('writes weather when present', async () => {
+		const item = makeItem({
+			weather: {
+				temperatureCelsius: 22.3,
+				conditionsDescription: 'Partly Cloudy',
 			},
-			fileManager,
-			importEvents
-		);
-
-		// Returned object
-		expect(result).toEqual({
-			total: 5,
-			successCount: 5,
-			ignoreCount: 0,
-			failures: [],
-			invalidEntries: [],
 		});
-
-		expect(frontmatterObjs[0]).toEqual({
-			activity: 'Train',
-			creationDate: '2024-04-16T23:00:00Z',
-			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
-			isAllDay: true,
-			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
-			latitude: 53.4276123046875,
-			longitude: -6.239171028137207,
-			modifiedDate: '2024-04-19T21:55:51Z',
-			starred: true,
-			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
-		});
-	});
-
-	test('successful update with one invalid', async () => {
-		vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
-		vault.read.mockResolvedValue(JSON.stringify(testDataWithInvalidEntry));
-
-		const result = await updateFrontMatter(
-			vault,
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
 			DEFAULT_SETTINGS,
 			fileManager,
-			importEvents
+			'fakefile/2024/04',
+			[]
 		);
 
-		// Returned object
-		expect(result).toEqual({
-			total: 6,
-			successCount: 5,
-			ignoreCount: 0,
-			failures: [],
-			invalidEntries: [
-				{
-					entryId: '1461153D91EC48C180C606C853FBFD83',
-					creationDate: '2024-04-17T23:00:00Z',
-					reason: new ZodError([
-						{
-							code: 'invalid_type',
-							expected: 'string',
-							received: 'object',
-							path: ['text'],
-							message: 'Expected string, received object',
-						},
-					]),
-				},
-			],
-		});
+		expect(frontmatterObjs[0].weather).toBe('22°C Partly Cloudy');
+	});
 
-		expect(frontmatterObjs[0]).toEqual({
-			activity: 'Train',
-			creationDate: '2024-04-16T23:00:00Z',
-			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
-			isAllDay: true,
-			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
-			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55:51Z',
-			starred: true,
-			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
+	test('omits weather when not present', async () => {
+		const item = makeItem();
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
+			DEFAULT_SETTINGS,
+			fileManager,
+			'fakefile/2024/04',
+			[]
+		);
+
+		expect(frontmatterObjs[0].weather).toBeUndefined();
+	});
+
+	test('maps starred to favorite', async () => {
+		const item = makeItem({ starred: true });
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
+			DEFAULT_SETTINGS,
+			fileManager,
+			'fakefile/2024/04',
+			[]
+		);
+
+		expect(frontmatterObjs[0].favorite).toBe(true);
+	});
+
+	test('merges journal tag, entry tags, and inline tags into sorted deduplicated array', async () => {
+		const item = makeItem({
+			tags: ['beta-tag', 'alpha-tag'],
 		});
+		await writeTargetFrontMatter(
+			fakeFile,
+			item,
+			DEFAULT_SETTINGS,
+			fileManager,
+			'myjournal/2024/04',
+			['inline-tag', 'alpha-tag'] // alpha-tag is a duplicate
+		);
+
+		expect(frontmatterObjs[0].tags).toEqual([
+			'alpha-tag',
+			'beta-tag',
+			'inline-tag',
+			'myjournal/2024/04',
+		]);
+	});
+
+	test('location uses most specific available fields', async () => {
+		// Only localityName + country
+		const item1 = makeItem({
+			location: {
+				localityName: 'Lugano',
+				country: 'Switzerland',
+				latitude: 46.0,
+				longitude: 8.9,
+			},
+		});
+		await writeTargetFrontMatter(
+			fakeFile,
+			item1,
+			DEFAULT_SETTINGS,
+			fileManager,
+			'j/2024/04',
+			[]
+		);
+		expect(frontmatterObjs[0].location).toBe('Lugano, Switzerland');
 	});
 });

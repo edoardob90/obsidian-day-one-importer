@@ -1,8 +1,18 @@
-import { EventRef, Events, Plugin, Notice, TFolder, TFile } from 'obsidian';
+import {
+	Events,
+	Modal,
+	Plugin,
+	Notice,
+	Setting,
+	TFolder,
+	TFile,
+} from 'obsidian';
 import { SettingsTab } from './settings-tab';
 import { UuidMapStoreImpl } from './uuid-map';
 import { ImportResult, resolveInternalLinks } from './utils';
-import moment from 'moment';
+import { importJson } from './import-json';
+import { normalizeEntries } from './normalize';
+import { DateTime } from 'luxon';
 
 export type TagStyle =
 	| 'camelCase'
@@ -13,7 +23,8 @@ export type TagStyle =
 
 export interface DayOneImporterSettings {
 	inDirectory: string;
-	inFileName?: string;
+	filePattern: string;
+	filePatternMode: 'include' | 'exclude';
 	outDirectory: string;
 	dateBasedFileNames: boolean;
 	dateBasedFileNameFormat: string;
@@ -23,11 +34,15 @@ export interface DayOneImporterSettings {
 	separateCoordinateFields: boolean;
 	enableInternalLinks: boolean;
 	tagStyle?: TagStyle;
+	journalTagPrefix: string;
+	normalizeScanFolder: string;
+	normalizeConflictResolution: 'keep-migrated' | 'keep-imported';
 }
 
 export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 	inDirectory: 'day-one-in',
-	inFileName: 'journal.json',
+	filePattern: '',
+	filePatternMode: 'include',
 	outDirectory: 'day-one-out',
 	dateBasedFileNames: false,
 	dateBasedFileNameFormat: 'yyyy-MM-dd HHmmss',
@@ -37,24 +52,128 @@ export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 	separateCoordinateFields: false,
 	enableInternalLinks: false,
 	tagStyle: undefined,
+	journalTagPrefix: '',
+	normalizeScanFolder: '',
+	normalizeConflictResolution: 'keep-migrated',
 };
+
+class ConfirmModal extends Modal {
+	private message: string;
+	private onConfirm: () => void;
+
+	constructor(
+		app: import('obsidian').App,
+		message: string,
+		onConfirm: () => void
+	) {
+		super(app);
+		this.message = message;
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.createEl('p', { text: this.message });
+
+		new Setting(contentEl)
+			.addButton((btn) =>
+				btn
+					.setButtonText('Continue')
+					.setCta()
+					.onClick(() => {
+						this.close();
+						this.onConfirm();
+					})
+			)
+			.addButton((btn) =>
+				btn.setButtonText('Cancel').onClick(() => this.close())
+			);
+	}
+
+	onClose() {
+		this.contentEl.empty();
+	}
+}
 
 export default class DayOneImporter extends Plugin {
 	settings!: DayOneImporterSettings;
 	importEvents = new Events();
-	percentageImportRef!: EventRef;
-	percentageUpdateRef!: EventRef;
 	uuidMapStore!: UuidMapStoreImpl;
 
 	async onload() {
 		await this.loadSettings();
 		this.uuidMapStore = new UuidMapStoreImpl(this);
 		this.addSettingTab(new SettingsTab(this.app, this));
-	}
 
-	onunload() {
-		this.importEvents.offref(this.percentageUpdateRef);
-		this.importEvents.offref(this.percentageImportRef);
+		this.addCommand({
+			id: 'import-day-one',
+			name: 'Import from Day One',
+			callback: () => {
+				new ConfirmModal(
+					this.app,
+					`This will import Day One entries into "${this.settings.outDirectory}". This will modify your vault data.`,
+					async () => {
+						try {
+							const res = await importJson(
+								this.app.vault,
+								this.settings,
+								this.app.fileManager,
+								this.importEvents,
+								this.uuidMapStore
+							);
+							await this.handleImportResult(res);
+						} catch (err) {
+							new Notice(err instanceof Error ? err.message : String(err));
+						}
+					}
+				).open();
+			},
+		});
+
+		this.addCommand({
+			id: 'resolve-internal-links',
+			name: 'Resolve internal links',
+			callback: () => {
+				new ConfirmModal(
+					this.app,
+					`This will scan notes in "${this.settings.outDirectory}" and resolve Day One internal links. This will modify your vault data.`,
+					async () => {
+						await this.resolveInternalLinksInNotes();
+					}
+				).open();
+			},
+		});
+
+		this.addCommand({
+			id: 'normalize-entries',
+			name: 'Normalize entries',
+			callback: () => {
+				const folder = this.settings.normalizeScanFolder || 'entire vault';
+				new ConfirmModal(
+					this.app,
+					`This will normalize entries in "${folder}". Files may be moved, modified, or deleted. This will modify your vault data.`,
+					async () => {
+						try {
+							const res = await normalizeEntries(
+								this.app.vault,
+								this.app.fileManager,
+								this.settings,
+								this.uuidMapStore
+							);
+							new Notice(
+								`Normalize results:\n` +
+									`Deleted: ${res.deleted}\nNormalized: ${res.normalized}\nSkipped: ${res.skipped}\nErrors: ${res.errors.length}` +
+									(res.renameFailures > 0
+										? `\nRename failures: ${res.renameFailures}`
+										: '')
+							);
+						} catch (err) {
+							new Notice(err instanceof Error ? err.message : String(err));
+						}
+					}
+				).open();
+			},
+		});
 	}
 
 	async loadSettings() {
@@ -66,22 +185,19 @@ export default class DayOneImporter extends Plugin {
 	}
 
 	async resolveInternalLinksInNotes(): Promise<void> {
-		// Extra check: only proceed if internal links resolving is enabled
 		if (!this.settings.enableInternalLinks) {
 			new Notice('Internal link resolving is disabled in settings.');
 			return;
 		}
-		// Check if UUID map exists
 		let uuidMap: Record<string, string> = {};
 		try {
 			uuidMap = await this.uuidMapStore.read();
-		} catch (e) {
+		} catch {
 			new Notice(
-				'No UUID map found. Make sure you have imported with internal links enabled.'
+				'No UUID map found. Make sure you have imported entries first.'
 			);
 			return;
 		}
-		// Get output directory and process only .md files
 		const folder = this.app.vault.getAbstractFileByPath(
 			this.settings.outDirectory
 		);
@@ -110,30 +226,38 @@ export default class DayOneImporter extends Plugin {
 			totalLinks += result.totalCount;
 		}
 
-		// Display a summary notice
-		if (totalLinks > 0) {
+		if (totalLinks === 0) {
 			new Notice(
-				`Resolved ${totalResolvedLinks} out of ${totalLinks} internal links across ${updatedNotes} notes.`
+				`Scanned ${notes.length} notes in "${this.settings.outDirectory}" — no Day One internal links found.`
+			);
+		} else if (totalResolvedLinks === 0) {
+			new Notice(
+				`Found ${totalLinks} Day One links in ${notes.length} notes, but none could be resolved. The linked entries may not have been imported yet — try importing all journals first, then resolve again.`
 			);
 		} else {
-			new Notice('No Day One internal links found in any notes.');
+			new Notice(
+				`Resolved ${totalResolvedLinks} of ${totalLinks} links across ${updatedNotes} notes.` +
+					(totalResolvedLinks < totalLinks
+						? ` ${totalLinks - totalResolvedLinks} links could not be resolved (target entries not imported).`
+						: '')
+			);
 		}
 	}
 
-	async handleImportResult(res: ImportResult, type: 'import' | 'update') {
+	async handleImportResult(res: ImportResult) {
 		new Notice(
-			`${type === 'import' ? 'Import' : 'Update'} results:\n` +
+			`Import results:\n` +
 				`Successful: ${res.successCount}\nFailed: ${res.failures.length}\nInvalid: ${res.invalidEntries.length}\nIgnored: ${res.ignoreCount}`
 		);
 
 		res.failures.forEach((failure) => {
 			if (failure.entry) {
 				new Notice(
-					`Entry ${failure.entry.uuid} failed to ${type}. ${failure.reason}`
+					`Entry ${failure.entry.uuid} failed to import. ${failure.reason}`
 				);
 			} else {
 				new Notice(
-					`A file or directory-related failure occurred during ${type}: ${failure.reason}`
+					`A file or directory-related failure occurred during import: ${failure.reason}`
 				);
 			}
 		});
@@ -145,7 +269,9 @@ export default class DayOneImporter extends Plugin {
 				.map((invalidEntry) => {
 					const entryId = invalidEntry.entryId || 'N/A';
 					const creationDate = invalidEntry.creationDate
-						? moment(invalidEntry.creationDate).format('YYYY-MM-DD HH:mm:ss')
+						? DateTime.fromISO(invalidEntry.creationDate).toFormat(
+								'yyyy-MM-dd HH:mm:ss'
+							)
 						: 'N/A';
 					return `- ${entryId} - ${creationDate}\n  - ${JSON.stringify(invalidEntry.reason)}`;
 				})
@@ -158,7 +284,9 @@ export default class DayOneImporter extends Plugin {
 				.map((failure) => {
 					const uuid = failure.entry?.uuid || 'N/A';
 					const creationDate = failure.entry?.creationDate
-						? moment(failure.entry.creationDate).format('YYYY-MM-DD HH:mm:ss')
+						? DateTime.fromISO(failure.entry.creationDate).toFormat(
+								'yyyy-MM-dd HH:mm:ss'
+							)
 						: 'N/A';
 					return `- ${uuid} - ${creationDate}\n  - ${failure.reason}`;
 				})
@@ -167,7 +295,7 @@ export default class DayOneImporter extends Plugin {
 
 		if (errorFileContent.length > 0) {
 			await this.app.vault.create(
-				`${this.settings.outDirectory}/Failed ${type === 'import' ? 'Imports' : 'Updates'} ${moment().toDate().getTime()}.md`,
+				`${this.settings.outDirectory}/Failed Imports ${Date.now()}.md`,
 				errorFileContent
 			);
 		}

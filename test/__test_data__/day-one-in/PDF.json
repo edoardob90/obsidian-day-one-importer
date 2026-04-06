@@ -4,10 +4,10 @@
 	},
 	"entries": [
 		{
-			"timeZone": "Europe\/Rome",
+			"timeZone": "Europe/Rome",
 			"creationDevice": "Athos",
 			"creationOSName": "macOS",
-			"text": "# A test entry\n\nThis is a test entry with a PDF document attached\\.\n\n![](dayone-moment:\/pdfAttachment\/A713232D62364FC2B53C2118E00E653C)",
+			"text": "# A test entry\n\nThis is a test entry with a PDF document attached\\.\n\n![](dayone-moment:/pdfAttachment/A713232D62364FC2B53C2118E00E653C)",
 			"editingTime": 29.375388979911804,
 			"duration": 0,
 			"isAllDay": false,

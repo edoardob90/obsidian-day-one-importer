@@ -12,6 +12,41 @@ export const requestUrl: typeof obsidian.requestUrl = (req) => {
 
 export class PluginSettingTab implements obsidian.PluginSettingTab {}
 
+export class Modal {
+	app: any;
+	constructor(app: any) {
+		this.app = app;
+	}
+	open() {}
+	close() {}
+	onOpen() {}
+	onClose() {}
+}
+
+export class AbstractInputSuggest {
+	app: any;
+	constructor(app: any, _inputEl: any) {
+		this.app = app;
+	}
+	setValue(_value: string) {}
+	close() {}
+}
+
+export class Setting {
+	constructor(_containerEl: any) {}
+	addButton(_cb: any) {
+		return this;
+	}
+	setName(_name: string) {
+		return this;
+	}
+	setDesc(_desc: string) {
+		return this;
+	}
+}
+
+export const Notice = jest.fn();
+
 export const moment = realMoment;
 export function normalizePath(path: string) {
 	return path;

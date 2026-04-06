@@ -1,19 +1,58 @@
 import {
+	AbstractInputSuggest,
 	App,
 	normalizePath,
 	Notice,
 	PluginSettingTab,
 	Setting,
-	ButtonComponent,
+	TFolder,
 	sanitizeHTMLToDom,
 } from 'obsidian';
 import DayOneImporter from './main';
 import { TagStyle } from './main';
-import { importJson } from './import-json';
-import { updateFrontMatter } from './update-front-matter';
 import { isIllegalFileName, ILLEGAL_FILENAME_CHARACTERS } from './utils';
 
 const ILLEGAL_FILENAME_CHARACTERS_FOR_NOTICE = [...ILLEGAL_FILENAME_CHARACTERS];
+
+class FolderSuggest extends AbstractInputSuggest<TFolder> {
+	private onSelectFolder: ((value: string) => void) | null = null;
+
+	setOnSelect(cb: (value: string) => void): this {
+		this.onSelectFolder = cb;
+		return this;
+	}
+
+	getSuggestions(query: string): TFolder[] {
+		const folders: TFolder[] = [];
+		const collect = (folder: TFolder) => {
+			if (
+				folder.path &&
+				folder.path.toLowerCase().contains(query.toLowerCase())
+			) {
+				folders.push(folder);
+			}
+			for (const child of folder.children) {
+				if (child instanceof TFolder) {
+					collect(child);
+				}
+			}
+		};
+		collect(this.app.vault.getRoot());
+		return folders;
+	}
+
+	renderSuggestion(folder: TFolder, el: HTMLElement): void {
+		el.setText(folder.path || '/');
+	}
+
+	selectSuggestion(folder: TFolder): void {
+		this.setValue(folder.path);
+		if (this.onSelectFolder) {
+			this.onSelectFolder(folder.path);
+		}
+		this.close();
+	}
+}
 
 export class SettingsTab extends PluginSettingTab {
 	plugin: DayOneImporter;
@@ -31,47 +70,69 @@ export class SettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Day One import folder')
 			.setDesc(
-				`Folder where Day One JSON exports are located.
-				All JSON files in this folder will be imported unless a specific file is set below.`
+				`Root folder containing Day One exports. The plugin searches recursively for JSON files in all subfolders. You can extract one or more Day One zip exports here — assets (photos, videos, etc.) are left in place and referenced by Obsidian automatically.`
 			)
-			.addSearch((cb) => {
-				cb.setPlaceholder('Example: folder1/folder2')
+			.addText((text) => {
+				const save = async (value: string) => {
+					this.plugin.settings.inDirectory = value.trim().replace(/\/$/, '');
+					await this.plugin.saveSettings();
+				};
+				new FolderSuggest(this.app, text.inputEl).setOnSelect(save);
+				text
+					.setPlaceholder('Example: folder1/folder2')
 					.setValue(this.plugin.settings.inDirectory)
-					.onChange(async (importFolder) => {
-						importFolder = importFolder.trim();
-						importFolder = importFolder.replace(/\/$/, '');
-						this.plugin.settings.inDirectory = importFolder;
-						await this.plugin.saveSettings();
-					});
+					.onChange(save);
 			});
 
 		new Setting(containerEl)
-			.setName('Import only this file (optional)')
+			.setName('File pattern (regex)')
 			.setDesc(
-				'If set, only this JSON file in the folder above will be imported.'
+				'Filter which JSON files to process by filename (not path). Uses a regular expression matched against each file name. Leave empty to process all JSON files found.'
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder('journal.json')
-					.setValue(this.plugin.settings.inFileName || '')
+					.setPlaceholder('e.g. Journal\\.json')
+					.setValue(this.plugin.settings.filePattern || '')
 					.onChange(async (value) => {
-						this.plugin.settings.inFileName = value.trim();
+						this.plugin.settings.filePattern = value.trim();
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Pattern mode')
+			.setDesc(
+				'Include: only import files matching the pattern. Exclude: skip files matching the pattern.'
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('include', 'Include matching')
+					.addOption('exclude', 'Exclude matching')
+					.setValue(this.plugin.settings.filePatternMode)
+					.onChange(async (value) => {
+						this.plugin.settings.filePatternMode = value as
+							| 'include'
+							| 'exclude';
 						await this.plugin.saveSettings();
 					})
 			);
 
 		new Setting(containerEl)
 			.setName('Out directory')
-			.setDesc('Directory to create imported files in.')
-			.addText((text) =>
+			.setDesc(
+				'Directory to create imported files in. Can be an existing folder or a new path — it will be created automatically during import.'
+			)
+			.addText((text) => {
+				const save = async (value: string) => {
+					this.plugin.settings.outDirectory = normalizePath(value);
+					await this.plugin.saveSettings();
+				};
+				new FolderSuggest(this.app, text.inputEl).setOnSelect(save);
 				text
 					.setPlaceholder('day-one-out')
 					.setValue(this.plugin.settings.outDirectory)
-					.onChange(async (value) => {
-						this.plugin.settings.outDirectory = normalizePath(value);
-						await this.plugin.saveSettings();
-					})
-			);
+					.onChange(save);
+			});
 
 		new Setting(containerEl)
 			.setName('Ignore existing files')
@@ -117,7 +178,7 @@ export class SettingsTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Enable internal links resolving')
 			.setDesc(
-				'When possible, Day One internal links will resolve across multiple imported journals.'
+				'When enabled, Day One internal links will be resolved during import. Use the "Resolve internal links" command to resolve links in already-imported notes.'
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -125,31 +186,8 @@ export class SettingsTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.enableInternalLinks = value;
 						await this.plugin.saveSettings();
-						if (resolveInternalLinksButton) {
-							resolveInternalLinksButton.setDisabled(!value);
-						}
 					})
 			);
-
-		// A button component to resolve links
-		let resolveInternalLinksButton: ButtonComponent;
-
-		new Setting(containerEl)
-			.setName('Resolve internal links in imported notes')
-			.setDesc(
-				'Scan all imported notes in the output folder and update internal links using the current UUID map. Only works if internal link resolving is enabled. Only notes currently in the output directory will be affected.'
-			)
-			.addButton((btn) => {
-				resolveInternalLinksButton = btn;
-				btn
-					.setButtonText('Resolve links')
-					.setDisabled(!this.plugin.settings.enableInternalLinks)
-					.onClick(async () => {
-						btn.setDisabled(true);
-						await this.plugin.resolveInternalLinksInNotes();
-						btn.setDisabled(false);
-					});
-			});
 
 		new Setting(containerEl).setName('File name').setHeading();
 
@@ -253,75 +291,58 @@ export class SettingsTab extends PluginSettingTab {
 					})
 			);
 
-		new Setting(containerEl).setName('Import').setHeading();
+		new Setting(containerEl).setName('Journal tag').setHeading();
 
 		new Setting(containerEl)
-			.setName('Start the import process')
-			.addProgressBar((pb) => {
-				pb.setValue(0);
-				this.plugin.percentageImportRef = this.plugin.importEvents.on(
-					'percentage-import',
-					(newPercentage: number) => {
-						pb.setValue(newPercentage);
-					}
-				);
-			})
-			.addButton((button) =>
-				button.setButtonText('Import').onClick(async () => {
-					try {
-						button.setDisabled(true);
-						const res = await importJson(
-							this.app.vault,
-							this.plugin.settings,
-							this.app.fileManager,
-							this.plugin.importEvents,
-							this.plugin.uuidMapStore
-						);
-						await this.plugin.handleImportResult(res, 'import');
-					} catch (err) {
-						new Notice(err instanceof Error ? err.message : String(err));
-					} finally {
-						button.setDisabled(false);
-					}
-				})
-			);
-
-		new Setting(containerEl).setName('Update Frontmatter').setHeading();
-
-		new Setting(containerEl)
-			.setName('Start the frontmatter update process')
+			.setName('Journal tag prefix')
 			.setDesc(
-				`IMPORTANT: This is a destructive operation and will overwrite any existing Frontmatter in previously imported entries.
-				You must use the same file name settings as you did when doing the initial import.`
+				'Prefix for the auto-generated journal tag (e.g. "journal/" produces "journal/my-journal/2025/09"). Leave empty for no prefix.'
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder('')
+					.setValue(this.plugin.settings.journalTagPrefix)
+					.onChange(async (value) => {
+						this.plugin.settings.journalTagPrefix = value;
+						await this.plugin.saveSettings();
+					})
 			);
 
+		new Setting(containerEl).setName('Normalize').setHeading();
+
 		new Setting(containerEl)
-			.addProgressBar((pb) => {
-				pb.setValue(0);
-				this.plugin.percentageUpdateRef = this.plugin.importEvents.on(
-					'percentage-update',
-					(newPercentage: number) => {
-						pb.setValue(newPercentage);
-					}
-				);
-			})
-			.addButton((button) =>
-				button.setButtonText('Update Frontmatter').onClick(async () => {
-					try {
-						button.setDisabled(true);
-						const res = await updateFrontMatter(
-							this.app.vault,
-							this.plugin.settings,
-							this.app.fileManager,
-							this.plugin.importEvents
-						);
-						await this.plugin.handleImportResult(res, 'update');
-					} catch (err) {
-						new Notice(err instanceof Error ? err.message : String(err));
-					} finally {
-						button.setDisabled(false);
-					}
-				})
+			.setName('Normalize scan folder')
+			.setDesc(
+				'Folder to scan when running "Normalize entries" command. Leave empty to scan the entire vault.'
+			)
+			.addText((text) => {
+				const save = async (value: string) => {
+					this.plugin.settings.normalizeScanFolder = value.trim();
+					await this.plugin.saveSettings();
+				};
+				new FolderSuggest(this.app, text.inputEl).setOnSelect(save);
+				text
+					.setPlaceholder('e.g. _migrate')
+					.setValue(this.plugin.settings.normalizeScanFolder)
+					.onChange(save);
+			});
+
+		new Setting(containerEl)
+			.setName('When a migrated file matches an imported entry')
+			.setDesc(
+				'If a file in the scan folder has a UUID that was already imported, choose which version to keep.'
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('keep-migrated', 'Keep migrated (may have edits)')
+					.addOption('keep-imported', 'Keep imported (raw Day One)')
+					.setValue(this.plugin.settings.normalizeConflictResolution)
+					.onChange(async (value) => {
+						this.plugin.settings.normalizeConflictResolution = value as
+							| 'keep-migrated'
+							| 'keep-imported';
+						await this.plugin.saveSettings();
+					})
 			);
 	}
 }

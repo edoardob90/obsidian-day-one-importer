@@ -1,4 +1,3 @@
-import * as path from 'path';
 import { Plugin } from 'obsidian';
 
 const UUID_MAP_FILENAME = 'uuids.json';
@@ -12,13 +11,12 @@ export class UuidMapStoreImpl implements UuidMapStore {
 	constructor(private plugin: Plugin) {}
 
 	private getUuidMapPath(): string {
-		// Default path: .obsidian/plugins/<plugin-id>/uuids.json
-		return path.join(
-			this.plugin.app.vault.configDir,
-			'plugins',
-			this.plugin.manifest.id,
-			UUID_MAP_FILENAME
-		);
+		// Use manifest.dir which points to the actual plugin folder
+		const dir = this.plugin.manifest.dir;
+		if (!dir) {
+			throw new Error('Plugin directory not available');
+		}
+		return `${dir}/${UUID_MAP_FILENAME}`;
 	}
 
 	async read(): Promise<Record<string, string>> {

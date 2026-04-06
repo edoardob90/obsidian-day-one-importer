@@ -25,10 +25,20 @@ jest.mock('obsidian', () => {
 
 const fakeJsonFile = {
 	name: 'fakeFile.json',
+	path: 'day-one-in/fakeFile.json',
 	extension: 'json',
 	basename: 'fakeFile',
 	stat: {},
 } as unknown as TFile;
+
+const makeFakeJsonFile = (dir: string) =>
+	({
+		name: 'fakeFile.json',
+		path: `${dir}/fakeFile.json`,
+		extension: 'json',
+		basename: 'fakeFile',
+		stat: {},
+	}) as unknown as TFile;
 
 const mockEntry = {
 	creationDevice: 'marcBook Pro',
@@ -99,7 +109,6 @@ describe('importJson', () => {
 				{
 					...DEFAULT_SETTINGS,
 					inDirectory: 'testDir',
-					inFileName: 'testInput.json',
 				},
 				fileManager,
 				importEvents,
@@ -108,42 +117,40 @@ describe('importJson', () => {
 		).rejects.toThrowError('Input directory does not exist.');
 	});
 
-	test('should error if no input file', () => {
+	test('should return empty result if no JSON files in folder', async () => {
 		vault.getAbstractFileByPath.mockImplementation((path: string) => {
 			if (path === 'testDir') return { children: [] } as unknown as TFolder;
 			return null;
 		});
-		vault.getFileByPath.mockReturnValue(null);
 
-		expect(() =>
-			importJson(
-				vault,
-				{
-					...DEFAULT_SETTINGS,
-					inDirectory: 'testDir',
-					inFileName: 'testInput.json',
-				},
-				fileManager,
-				importEvents,
-				mockUuidMapStore
-			)
-		).rejects.toThrowError(
-			'File testInput.json does not exist in the input directory.'
+		const result = await importJson(
+			vault,
+			{
+				...DEFAULT_SETTINGS,
+				inDirectory: 'testDir',
+			},
+			fileManager,
+			importEvents,
+			mockUuidMapStore
 		);
 
-		// Behavioral check
-		expect(vault.getAbstractFileByPath).toBeCalledWith(
-			'testDir/testInput.json'
-		);
+		expect(result).toEqual({
+			total: 0,
+			successCount: 0,
+			ignoreCount: 0,
+			failures: [],
+			invalidEntries: [],
+		});
 	});
 
 	test('should create output directory if it does not exist', async () => {
+		const testDirFile = makeFakeJsonFile('testDir');
 		vault.getAbstractFileByPath.mockImplementation((path: string) => {
 			if (path === 'testDir') {
-				return { children: [fakeJsonFile] } as unknown as TFolder;
+				return { children: [testDirFile] } as unknown as TFolder;
 			}
 			if (path === 'testDir/fakeFile.json') {
-				return fakeJsonFile;
+				return testDirFile;
 			}
 			return null;
 		});
@@ -161,7 +168,6 @@ describe('importJson', () => {
 			{
 				...DEFAULT_SETTINGS,
 				inDirectory: 'testDir',
-				inFileName: 'fakeFile.json',
 			},
 			fileManager,
 			importEvents,
@@ -174,12 +180,13 @@ describe('importJson', () => {
 	});
 
 	test('should not create output directory if it already exists', async () => {
+		const testDirFile = makeFakeJsonFile('testDir');
 		vault.getAbstractFileByPath.mockImplementation((path: string) => {
 			if (path === 'testDir') {
-				return { children: [fakeJsonFile] } as unknown as TFolder;
+				return { children: [testDirFile] } as unknown as TFolder;
 			}
 			if (path === 'testDir/fakeFile.json') {
-				return fakeJsonFile;
+				return testDirFile;
 			}
 			if (path === DEFAULT_SETTINGS.outDirectory) {
 				return { children: [] } as unknown as TFolder;
@@ -200,7 +207,6 @@ describe('importJson', () => {
 			{
 				...DEFAULT_SETTINGS,
 				inDirectory: 'testDir',
-				inFileName: 'fakeFile.json',
 			},
 			fileManager,
 			importEvents,
@@ -211,12 +217,13 @@ describe('importJson', () => {
 	});
 
 	test('should error if file name has already been used in this import', async () => {
+		const testDirFile = makeFakeJsonFile('testDir');
 		vault.getAbstractFileByPath.mockImplementation((path: string) => {
 			if (path === 'testDir') {
-				return { children: [fakeJsonFile] } as unknown as TFolder;
+				return { children: [testDirFile] } as unknown as TFolder;
 			}
 			if (path === 'testDir/fakeFile.json') {
-				return fakeJsonFile;
+				return testDirFile;
 			}
 			return null;
 		});
@@ -241,7 +248,6 @@ describe('importJson', () => {
 			{
 				...DEFAULT_SETTINGS,
 				inDirectory: 'testDir',
-				inFileName: 'fakeFile.json',
 			},
 			fileManager,
 			importEvents,
@@ -259,7 +265,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -297,7 +303,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -335,7 +341,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -385,7 +391,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -419,7 +425,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -463,7 +469,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -589,7 +595,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -631,7 +637,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -687,15 +693,13 @@ describe('importJson', () => {
 			mtime: 1713563751000,
 		});
 		expect(frontmatterObjs[0]).toEqual({
-			activity: 'Train',
-			creationDate: '2024-04-16T23:00:00Z',
+			date: '2024-04-17T00:00:00+01:00',
+			modified: '2024-04-19T22:55:51+01:00',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
-			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55:51Z',
-			starred: true,
-			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
+			favorite: true,
+			tags: ['another-dev-testing-tag', 'dev-testing-tag', 'fakefile/2024/04'],
 		});
 
 		// entry 2 - Multiple paragraphs
@@ -711,10 +715,11 @@ describe('importJson', () => {
 			mtime: 1713563393000,
 		});
 		expect(frontmatterObjs[1]).toEqual({
-			creationDate: '2024-04-17T23:00:00Z',
-			isAllDay: true,
-			modifiedDate: '2024-04-19T21:49:53Z',
+			date: '2024-04-18T00:00:00+01:00',
+			modified: '2024-04-19T22:49:53+01:00',
 			uuid: '1461153D91EC48C180C606C853FBFD83',
+			favorite: false,
+			tags: ['fakefile/2024/04'],
 		});
 
 		// entry 3 - Hyphens and parentheses
@@ -732,12 +737,13 @@ describe('importJson', () => {
 			mtime: 1713563332000,
 		});
 		expect(frontmatterObjs[2]).toEqual({
-			creationDate: '2024-04-19T21:48:36Z',
+			date: '2024-04-19T22:48:36+01:00',
+			modified: '2024-04-19T22:48:52+01:00',
 			location: 'Dundas Castle, Edinburgh, United Kingdom',
 			coordinates: `55.97501754760742,-3.4143447875976562`,
-			modifiedDate: '2024-04-19T21:48:52Z',
-			pinned: true,
 			uuid: '876E72B228F847379F296B1698CA3F61',
+			favorite: false,
+			tags: ['fakefile/2024/04'],
 		});
 
 		// entry 4 - Media
@@ -753,11 +759,13 @@ describe('importJson', () => {
 			mtime: 1713563820000,
 		});
 		expect(frontmatterObjs[3]).toEqual({
-			creationDate: '2024-04-19T21:55:53Z',
+			date: '2024-04-19T22:55:53+01:00',
+			modified: '2024-04-19T22:57:00+01:00',
 			location: 'London Eye, London, United Kingdom',
-			modifiedDate: '2024-04-19T21:57:00Z',
 			uuid: '479270F4CAD1429AB1564DB34D0FE337',
 			coordinates: `51.503360748291016,-0.11951349675655365`,
+			favorite: false,
+			tags: ['fakefile/2024/04'],
 		});
 
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
@@ -792,7 +800,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			return null;
@@ -862,15 +870,13 @@ describe('importJson', () => {
 			mtime: 1713563751000,
 		});
 		expect(frontmatterObjs[0]).toEqual({
-			activity: 'Train',
-			creationDate: '2024-04-16T23:00:00Z',
+			date: '2024-04-17T00:00:00+01:00',
+			modified: '2024-04-19T22:55:51+01:00',
 			uuid: 'DF8B32A3FE25400BBBB3A7BBFCD23CE7',
-			isAllDay: true,
 			location: 'Eurpocar Dublin Airport Terminal 2, Swords, Ireland',
 			coordinates: `53.4276123046875,-6.239171028137207`,
-			modifiedDate: '2024-04-19T21:55:51Z',
-			starred: true,
-			tags: ['another-dev-testing-tag', 'dev-testing-tag'],
+			favorite: true,
+			tags: ['another-dev-testing-tag', 'dev-testing-tag', 'fakefile/2024/04'],
 		});
 
 		// entry 2 - Multiple paragraphs
@@ -886,10 +892,11 @@ describe('importJson', () => {
 			mtime: 1713563393000,
 		});
 		expect(frontmatterObjs[1]).toEqual({
-			creationDate: '2024-04-17T23:00:00Z',
-			isAllDay: true,
-			modifiedDate: '2024-04-19T21:49:53Z',
+			date: '2024-04-18T00:00:00+01:00',
+			modified: '2024-04-19T22:49:53+01:00',
 			uuid: '1461153D91EC48C180C606C853FBFD83',
+			favorite: false,
+			tags: ['fakefile/2024/04'],
 		});
 
 		// entry 3 - Hyphens and parentheses
@@ -907,12 +914,13 @@ describe('importJson', () => {
 			mtime: 1713563332000,
 		});
 		expect(frontmatterObjs[2]).toEqual({
-			creationDate: '2024-04-19T21:48:36Z',
+			date: '2024-04-19T22:48:36+01:00',
+			modified: '2024-04-19T22:48:52+01:00',
 			location: 'Dundas Castle, Edinburgh, United Kingdom',
 			coordinates: `55.97501754760742,-3.4143447875976562`,
-			modifiedDate: '2024-04-19T21:48:52Z',
-			pinned: true,
 			uuid: '876E72B228F847379F296B1698CA3F61',
+			favorite: false,
+			tags: ['fakefile/2024/04'],
 		});
 
 		// entry 4 - Media
@@ -928,11 +936,13 @@ describe('importJson', () => {
 			mtime: 1713563820000,
 		});
 		expect(frontmatterObjs[3]).toEqual({
-			creationDate: '2024-04-19T21:55:53Z',
+			date: '2024-04-19T22:55:53+01:00',
+			modified: '2024-04-19T22:57:00+01:00',
 			location: 'London Eye, London, United Kingdom',
-			modifiedDate: '2024-04-19T21:57:00Z',
 			uuid: '479270F4CAD1429AB1564DB34D0FE337',
 			coordinates: `51.503360748291016,-0.11951349675655365`,
+			favorite: false,
+			tags: ['fakefile/2024/04'],
 		});
 
 		expect(importEvents.trigger).toHaveBeenNthCalledWith(
@@ -1007,8 +1017,6 @@ describe('importJson', () => {
 			vault,
 			{
 				...DEFAULT_SETTINGS,
-				inDirectory: 'day-one-in',
-				inFileName: 'fakeFile.json',
 				enableInternalLinks: true, // Enable internal links
 			},
 			fileManager,
@@ -1034,7 +1042,7 @@ describe('importJson', () => {
 		expect(updatedMap).toHaveProperty('def456');
 	});
 
-	test('should NOT update UUID map when enableInternalLinks is false', async () => {
+	test('should always populate UUID map even when enableInternalLinks is false', async () => {
 		// Clear mocks before running this test
 		jest.clearAllMocks();
 
@@ -1069,12 +1077,12 @@ describe('importJson', () => {
 			})
 		);
 
+		mockUuidMapStore.read.mockResolvedValue({});
+
 		await importJson(
 			vault,
 			{
 				...DEFAULT_SETTINGS,
-				inDirectory: 'day-one-in',
-				inFileName: 'fakeFile.json',
 				enableInternalLinks: false, // Disable internal links
 			},
 			fileManager,
@@ -1082,11 +1090,16 @@ describe('importJson', () => {
 			mockUuidMapStore
 		);
 
-		// Verify that read was not called
-		expect(mockUuidMapStore.read).not.toHaveBeenCalled();
+		// Verify that read was called (UUID map is always populated)
+		expect(mockUuidMapStore.read).toHaveBeenCalled();
 
-		// Verify that write was not called
-		expect(mockUuidMapStore.write).not.toHaveBeenCalled();
+		// Verify that write was called (UUID map is always persisted)
+		expect(mockUuidMapStore.write).toHaveBeenCalled();
+
+		// Verify the map was updated with our entries
+		const updatedMap = mockUuidMapStore.write.mock.calls[0][0];
+		expect(updatedMap).toHaveProperty('abc123');
+		expect(updatedMap).toHaveProperty('def456');
 	});
 
 	test('single entry impport with PDF attachment', async () => {
@@ -1094,7 +1107,7 @@ describe('importJson', () => {
 			if (path === 'day-one-in') {
 				return { children: [fakeJsonFile] } as unknown as TFolder;
 			}
-			if (path === 'day-one-in/journal.json') {
+			if (path === 'day-one-in/fakeFile.json') {
 				return fakeJsonFile;
 			}
 			if (path === DEFAULT_SETTINGS.outDirectory) {
@@ -1131,11 +1144,11 @@ describe('importJson', () => {
 
 	describe('transformTag', () => {
 		it.each([
-			['leave as-is', ['My Test Tag'], undefined],
-			['camelCase', ['myTestTag'], 'camelCase'],
-			['PascalCase', ['MyTestTag'], 'PascalCase'],
-			['snake_case', ['my_test_tag'], 'snake_case'],
-			['kebab-case', ['my-test-tag'], 'kebab-case'],
+			['leave as-is', ['My Test Tag', 'fakefile/2024/04'], undefined],
+			['camelCase', ['fakefile/2024/04', 'myTestTag'], 'camelCase'],
+			['PascalCase', ['MyTestTag', 'fakefile/2024/04'], 'PascalCase'],
+			['snake_case', ['fakefile/2024/04', 'my_test_tag'], 'snake_case'],
+			['kebab-case', ['fakefile/2024/04', 'my-test-tag'], 'kebab-case'],
 		] as const)(
 			"should transform tags as '%s'",
 			async (_label, expected, style) => {
@@ -1143,7 +1156,7 @@ describe('importJson', () => {
 					if (path === 'day-one-in') {
 						return { children: [fakeJsonFile] } as unknown as TFolder;
 					}
-					if (path === 'day-one-in/journal.json') {
+					if (path === 'day-one-in/fakeFile.json') {
 						return fakeJsonFile;
 					}
 					if (path === DEFAULT_SETTINGS.outDirectory) {

@@ -24,11 +24,19 @@ export function buildFileName(
 	item: DayOneItem
 ) {
 	if (settings.dateBasedFileNames) {
-		const dt = DateTime.fromISO(
-			settings.localizedDateMode === 'none' || !item.localizedDate
-				? item.creationDate
-				: item.localizedDate
-		);
+		let dt: DateTime;
+		if (settings.localizedDateMode === 'event' && item.timeZone) {
+			// Use the entry's original timezone
+			dt = DateTime.fromISO(item.creationDate, {
+				zone: item.timeZone,
+			});
+		} else if (settings.localizedDateMode === 'local') {
+			// Use system local timezone
+			dt = DateTime.fromISO(item.creationDate).toLocal();
+		} else {
+			// 'none': use UTC as-is
+			dt = DateTime.fromISO(item.creationDate, { zone: 'utc' });
+		}
 		if (item.isAllDay) {
 			return normalizePath(
 				`${dt.toFormat(settings.dateBasedAllDayFileNameFormat)}.md`
@@ -62,9 +70,8 @@ const UNPAIRED_SQUARE_BRACKET_REGEX = new RegExp('(\\[[^\\]]*$)|(^[^\\[]*])');
 
 export function isIllegalFileName(fileName: string): boolean {
 	return (
-		ILLEGAL_FILENAME_CHARACTERS.some((illegal) =>
-			fileName.contains(illegal)
-		) || UNPAIRED_SQUARE_BRACKET_REGEX.test(fileName)
+		ILLEGAL_FILENAME_CHARACTERS.some((illegal) => fileName.contains(illegal)) ||
+		UNPAIRED_SQUARE_BRACKET_REGEX.test(fileName)
 	);
 }
 
@@ -130,7 +137,6 @@ export async function collectDayOneEntries(
 	allInvalidEntries: ImportInvalidEntry[];
 }> {
 	const folder = settings.inDirectory;
-	const fileNameOverride = settings.inFileName;
 
 	const folderFiles = vault.getAbstractFileByPath(folder);
 	if (!folderFiles || !isTFolder(folderFiles)) {
@@ -138,22 +144,37 @@ export async function collectDayOneEntries(
 		throw new Error('Input directory does not exist.');
 	}
 
-	let filesToProcess: string[] = [];
-	if (fileNameOverride && fileNameOverride.trim() !== '') {
-		filesToProcess = [fileNameOverride];
-		const file = vault.getAbstractFileByPath(folder + '/' + fileNameOverride);
-		if (!file || !isTFile(file)) {
-			new Notice(
-				`File ${fileNameOverride} does not exist in the input directory.`
-			);
-			throw new Error(
-				`File ${fileNameOverride} does not exist in the input directory.`
-			);
+	// Recursively collect all JSON files from directory
+	const collectJsonFiles = (
+		parent: { children: import('obsidian').TAbstractFile[] },
+		basePath: string
+	): { name: string; path: string }[] => {
+		const result: { name: string; path: string }[] = [];
+		for (const child of parent.children) {
+			if (isTFile(child) && child.name.endsWith('.json')) {
+				result.push({ name: child.name, path: child.path });
+			} else if (isTFolder(child)) {
+				result.push(...collectJsonFiles(child, child.path));
+			}
 		}
-	} else {
-		filesToProcess = folderFiles.children
-			.filter((f) => isTFile(f) && f.name.endsWith('.json'))
-			.map((f) => f.name);
+		return result;
+	};
+
+	let filesToProcess = collectJsonFiles(folderFiles, folder);
+
+	// Apply file pattern filter if set
+	if (settings.filePattern && settings.filePattern.trim() !== '') {
+		try {
+			const regex = new RegExp(settings.filePattern);
+			if (settings.filePatternMode === 'exclude') {
+				filesToProcess = filesToProcess.filter((f) => !regex.test(f.name));
+			} else {
+				filesToProcess = filesToProcess.filter((f) => regex.test(f.name));
+			}
+		} catch {
+			new Notice(`Invalid file pattern regex: ${settings.filePattern}`);
+			throw new Error(`Invalid file pattern regex: ${settings.filePattern}`);
+		}
 	}
 
 	if (!filesToProcess.length) {
@@ -168,16 +189,16 @@ export async function collectDayOneEntries(
 	const allEntries: { item: DayOneItem; fileName: string }[] = [];
 	const allInvalidEntries: ImportInvalidEntry[] = [];
 
-	for (const fileName of filesToProcess) {
-		const file = vault.getAbstractFileByPath(folder + '/' + fileName);
+	for (const { name: jsonFileName, path: jsonPath } of filesToProcess) {
+		const file = vault.getAbstractFileByPath(jsonPath);
 		if (!file || !isTFile(file)) {
-			console.error(`No file found: ${folder}/${fileName}`);
+			console.error(`No file found: ${jsonPath}`);
 			continue;
 		}
 		const fileData = await vault.read(file);
 		const parsedFileData = JSON.parse(fileData);
 		if (!Array.isArray(parsedFileData.entries)) {
-			console.error('Invalid file format in ' + fileName);
+			console.error('Invalid file format in ' + jsonFileName);
 			continue;
 		}
 		parsedFileData.entries.forEach((entry: unknown) => {
@@ -210,7 +231,7 @@ export async function collectDayOneEntries(
 				item.localizedDate = localizedDate;
 
 				// Add the entry to the list
-				allEntries.push({ item, fileName });
+				allEntries.push({ item, fileName: jsonFileName });
 			} else {
 				const entryId = (entry as DayOneItem)?.uuid;
 				const entryCreationDate = (entry as DayOneItem)?.creationDate;
@@ -349,7 +370,6 @@ export function buildMediaReplacement(
 		if (!collection) continue;
 
 		const found = collection.find((media) => media.identifier === match[1]);
-		console.log(`Found media with identifier ${found?.identifier}`);
 		if (found) {
 			mediaObj = fn(found);
 			break;
@@ -377,5 +397,108 @@ export function buildMediaReplacement(
 	return {
 		replace: match[0],
 		with: match[0],
+	};
+}
+
+/**
+ * Regex to find Day One deep links in note bodies.
+ */
+export const DAYONE_LINK_REGEX = /dayone2?:\/\/view\?entryId=([A-Fa-f0-9]+)/g;
+
+/**
+ * Slugify a journal name for use as an Obsidian tag.
+ * Lowercase, replace spaces/special chars with hyphens, strip leading/trailing hyphens.
+ */
+export function slugifyJournalName(name: string): string {
+	return name
+		.toLowerCase()
+		.replace(/[^a-z0-9_-]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Build the auto-generated journal tag from a Day One JSON filename and entry date.
+ * Example: "Dev Journal.json" + entry in Sept 2025 + prefix "" → "dev-journal/2025/09"
+ * Example: same + prefix "journal/" → "journal/dev-journal/2025/09"
+ */
+export function buildJournalTag(
+	jsonFileName: string,
+	item: DayOneItem,
+	prefix: string
+): string {
+	const journalName = slugifyJournalName(jsonFileName.replace(/\.json$/i, ''));
+	const dt = DateTime.fromISO(item.creationDate, { zone: item.timeZone });
+	return `${prefix}${journalName}/${dt.toFormat('yyyy')}/${dt.toFormat('MM')}`;
+}
+
+/**
+ * Format an ISO date string with timezone offset.
+ */
+export function formatDateWithOffset(
+	isoDate: string,
+	timeZone: string
+): string {
+	return DateTime.fromISO(isoDate, { zone: timeZone })
+		.set({ millisecond: 0 })
+		.toISO({ suppressMilliseconds: true })!;
+}
+
+/**
+ * Format weather data into a human-readable string.
+ * Returns null if no meaningful data is present.
+ */
+export function formatWeather(
+	weather:
+		| { temperatureCelsius?: number; conditionsDescription?: string }
+		| undefined
+): string | null {
+	if (!weather) return null;
+	const parts: string[] = [];
+	if (weather.temperatureCelsius !== undefined) {
+		parts.push(`${Math.round(weather.temperatureCelsius)}\u00B0C`);
+	}
+	if (weather.conditionsDescription) {
+		parts.push(weather.conditionsDescription);
+	}
+	return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * Format location data into a human-readable string.
+ * Uses most specific available fields, always appends country if present.
+ * Returns null if no meaningful data is present.
+ */
+export function formatLocation(
+	location: DayOneItem['location']
+): string | null {
+	if (!location) return null;
+	const parts = [
+		location.placeName,
+		location.localityName,
+		location.country,
+	].filter(Boolean);
+	return parts.length > 0 ? parts.join(', ') : null;
+}
+
+/**
+ * Strip inline #tags from text and return them separately.
+ * Only matches tags that are at the start of a line or preceded by whitespace.
+ */
+export function stripInlineTags(text: string): {
+	text: string;
+	tags: string[];
+} {
+	const tags: string[] = [];
+	const stripped = text.replace(
+		/(?:^|\s)#([a-zA-Z0-9_\-/]+)/g,
+		(match, tag, offset) => {
+			tags.push(tag);
+			// Preserve leading whitespace if the match started with it
+			return match.startsWith('#') ? '' : match[0];
+		}
+	);
+	return {
+		text: stripped.replace(/\n{3,}/g, '\n\n').trim(),
+		tags: [...new Set(tags)],
 	};
 }
