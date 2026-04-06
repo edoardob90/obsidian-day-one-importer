@@ -7,14 +7,17 @@ import {
 	ImportFailure,
 	ImportInvalidEntry,
 	ImportResult,
+	resolveInternalLinks,
 } from './utils';
 import { writeFrontMatter } from './update-front-matter';
+import { UuidMapStore } from './uuid-map';
 
 export async function importJson(
 	vault: Vault,
 	settings: DayOneImporterSettings,
 	fileManager: FileManager,
-	importEvents: Events
+	importEvents: Events,
+	uuidMapStore?: UuidMapStore
 ): Promise<ImportResult> {
 	try {
 		const file = vault.getFileByPath(
@@ -52,6 +55,22 @@ export async function importJson(
 			}
 		});
 
+		// Build UUID map if internal links are enabled
+		const useInternalLinks = settings.enableInternalLinks && !!uuidMapStore;
+		let uuidToFileName: Record<string, string> = {};
+
+		if (useInternalLinks) {
+			try {
+				uuidToFileName = await uuidMapStore!.read();
+			} catch (e) {
+				uuidToFileName = {};
+			}
+
+			for (const item of validEntries) {
+				uuidToFileName[item.uuid] = buildFileName(settings, item);
+			}
+		}
+
 		let successCount = 0;
 		let ignoreCount = 0;
 		const failures: ImportFailure[] = [];
@@ -73,8 +92,7 @@ export async function importJson(
 
 				const file = await vault.create(
 					`${settings.outDirectory}/${fileName}`,
-					// Day One seems to export escaped full stops for some reason, so replace those with just a regular full stop
-					buildFileBody(item),
+					buildFileBody(item, useInternalLinks ? uuidToFileName : {}),
 					{
 						ctime: new Date(item.creationDate).getTime(),
 						mtime: new Date(item.modifiedDate).getTime(),
@@ -104,6 +122,11 @@ export async function importJson(
 			importEvents.trigger('percentage-update', percentage);
 		}
 
+		// Persist UUID map after import
+		if (useInternalLinks) {
+			await uuidMapStore!.write(uuidToFileName);
+		}
+
 		return {
 			total: validEntries.length + invalidEntries.length,
 			successCount,
@@ -117,7 +140,10 @@ export async function importJson(
 	}
 }
 
-function buildFileBody(item: DayOneItem): string {
+function buildFileBody(
+	item: DayOneItem,
+	uuidToFileName: Record<string, string>
+): string {
 	let returned = `${(item.text as string).replace(/\\/gm, '')}`;
 
 	const photoMoments = Array.from(
@@ -140,6 +166,11 @@ function buildFileBody(item: DayOneItem): string {
 		replacements.forEach((replacement) => {
 			returned = returned.replace(replacement.replace, replacement.with);
 		});
+	}
+
+	// Resolve internal links if UUID map is provided
+	if (Object.keys(uuidToFileName).length > 0) {
+		returned = resolveInternalLinks(returned, uuidToFileName).text;
 	}
 
 	return returned;

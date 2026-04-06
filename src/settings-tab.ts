@@ -1,5 +1,6 @@
 import {
 	App,
+	ButtonComponent,
 	moment,
 	normalizePath,
 	Notice,
@@ -9,6 +10,7 @@ import {
 import DayOneImporter from './main';
 import { importJson } from './import-json';
 import { updateFrontMatter } from './update-front-matter';
+import { resolveInternalLinksInNotes } from './resolve-internal-links';
 import { ImportResult } from './utils';
 
 const ILLEGAL_FILENAME_CHARACTERS_FOR_DATE_FORMATTING = [
@@ -166,6 +168,69 @@ export class SettingsTab extends PluginSettingTab {
 					})
 			);
 
+		new Setting(containerEl).setName('Internal links').setHeading();
+
+		new Setting(containerEl)
+			.setName('Enable internal links resolving')
+			.setDesc(
+				'When enabled, Day One internal links (dayone://view?entryId=UUID) will be resolved to Obsidian wiki-links during import.'
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableInternalLinks)
+					.onChange(async (value) => {
+						this.plugin.settings.enableInternalLinks = value;
+						await this.plugin.saveSettings();
+						if (resolveInternalLinksButton) {
+							resolveInternalLinksButton.setDisabled(!value);
+						}
+						if (clearUuidMapButton) {
+							clearUuidMapButton.setDisabled(!value);
+						}
+					})
+			);
+
+		let resolveInternalLinksButton: ButtonComponent;
+
+		new Setting(containerEl)
+			.setName('Resolve internal links in imported notes')
+			.setDesc(
+				'Scan all imported notes in the output folder and update internal links using the current UUID map.'
+			)
+			.addButton((btn) => {
+				resolveInternalLinksButton = btn;
+				btn
+					.setButtonText('Resolve links')
+					.setDisabled(!this.plugin.settings.enableInternalLinks)
+					.onClick(async () => {
+						btn.setDisabled(true);
+						await resolveInternalLinksInNotes(
+							this.app.vault,
+							this.plugin.settings,
+							this.plugin.uuidMapStore
+						);
+						btn.setDisabled(false);
+					});
+			});
+
+		let clearUuidMapButton: ButtonComponent;
+
+		new Setting(containerEl)
+			.setName('Clear UUID map')
+			.setDesc(
+				'Remove the stored UUID-to-filename mapping. Useful if you want to start fresh.'
+			)
+			.addButton((btn) => {
+				clearUuidMapButton = btn;
+				btn
+					.setButtonText('Clear')
+					.setDisabled(!this.plugin.settings.enableInternalLinks)
+					.onClick(async () => {
+						await this.plugin.uuidMapStore.clear();
+						new Notice('UUID map cleared.');
+					});
+			});
+
 		new Setting(containerEl).setName('Import').setHeading();
 
 		new Setting(containerEl)
@@ -186,7 +251,8 @@ export class SettingsTab extends PluginSettingTab {
 							this.app.vault,
 							this.plugin.settings,
 							this.app.fileManager,
-							this.plugin.importEvents
+							this.plugin.importEvents,
+							this.plugin.uuidMapStore
 						);
 						await this.handleImportResult(res, 'import');
 					} catch (err) {

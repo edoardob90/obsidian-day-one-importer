@@ -13,6 +13,7 @@ import {
 import * as testData from './__test_data__/day-one-in/Dev Journal.json';
 import * as testDataWithInvalidEntry from './__test_data__/day-one-in/Dev Journal One Invalid.json';
 import { ZodError } from 'zod';
+import { UuidMapStore } from '../src/uuid-map';
 
 const mockEntry = {
 	creationDevice: 'marcBook Pro',
@@ -711,5 +712,214 @@ describe('importJson', () => {
 			'percentage-update',
 			100
 		);
+	});
+
+	describe('internal links', () => {
+		let mockUuidMapStore: jest.Mocked<UuidMapStore>;
+
+		beforeEach(() => {
+			mockUuidMapStore = {
+				read: jest.fn<() => Promise<Record<string, string>>>(),
+				write: jest.fn<(map: Record<string, string>) => Promise<void>>(),
+				clear: jest.fn<() => Promise<void>>(),
+			};
+		});
+
+		test('should build and persist UUID map when internal links are enabled', async () => {
+			vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+			vault.read.mockResolvedValue(
+				JSON.stringify({
+					entries: [
+						{
+							...mockEntry,
+							uuid: 'ABC123',
+						},
+					],
+				})
+			);
+			mockUuidMapStore.read.mockResolvedValue({});
+
+			await importJson(
+				vault,
+				{
+					...DEFAULT_SETTINGS,
+					enableInternalLinks: true,
+				},
+				fileManager,
+				importEvents,
+				mockUuidMapStore
+			);
+
+			expect(mockUuidMapStore.read).toHaveBeenCalled();
+			expect(mockUuidMapStore.write).toHaveBeenCalledWith(
+				expect.objectContaining({
+					ABC123: 'ABC123.md',
+				})
+			);
+		});
+
+		test('should not build UUID map when internal links are disabled', async () => {
+			vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+			vault.read.mockResolvedValue(
+				JSON.stringify({
+					entries: [
+						{
+							...mockEntry,
+							uuid: 'ABC123',
+						},
+					],
+				})
+			);
+
+			await importJson(
+				vault,
+				{
+					...DEFAULT_SETTINGS,
+					enableInternalLinks: false,
+				},
+				fileManager,
+				importEvents,
+				mockUuidMapStore
+			);
+
+			expect(mockUuidMapStore.read).not.toHaveBeenCalled();
+			expect(mockUuidMapStore.write).not.toHaveBeenCalled();
+		});
+
+		test('should resolve markdown-wrapped Day One links in file body', async () => {
+			vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+			vault.read.mockResolvedValue(
+				JSON.stringify({
+					entries: [
+						{
+							...mockEntry,
+							uuid: 'ENTRY1',
+							text: 'See [my other entry](dayone://view?entryId=ENTRY2) for details',
+						},
+						{
+							...mockEntry,
+							uuid: 'ENTRY2',
+							text: 'This is the linked entry',
+						},
+					],
+				})
+			);
+			mockUuidMapStore.read.mockResolvedValue({});
+
+			await importJson(
+				vault,
+				{
+					...DEFAULT_SETTINGS,
+					enableInternalLinks: true,
+				},
+				fileManager,
+				importEvents,
+				mockUuidMapStore
+			);
+
+			expect(vault.create.mock.calls[0][1]).toBe(
+				'See [[ENTRY2|my other entry]] for details'
+			);
+		});
+
+		test('should resolve bare/raw Day One links in file body', async () => {
+			vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+			vault.read.mockResolvedValue(
+				JSON.stringify({
+					entries: [
+						{
+							...mockEntry,
+							uuid: 'ENTRY1',
+							text: 'Another entry: dayone://view?entryId=ENTRY2',
+						},
+						{
+							...mockEntry,
+							uuid: 'ENTRY2',
+							text: 'This is the linked entry',
+						},
+					],
+				})
+			);
+			mockUuidMapStore.read.mockResolvedValue({});
+
+			await importJson(
+				vault,
+				{
+					...DEFAULT_SETTINGS,
+					enableInternalLinks: true,
+				},
+				fileManager,
+				importEvents,
+				mockUuidMapStore
+			);
+
+			expect(vault.create.mock.calls[0][1]).toBe('Another entry: [[ENTRY2]]');
+		});
+
+		test('should leave unresolved Day One links unchanged', async () => {
+			vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+			vault.read.mockResolvedValue(
+				JSON.stringify({
+					entries: [
+						{
+							...mockEntry,
+							uuid: 'ENTRY1',
+							text: 'See [missing](dayone://view?entryId=UNKNOWN) and dayone://view?entryId=ALSO_UNKNOWN',
+						},
+					],
+				})
+			);
+			mockUuidMapStore.read.mockResolvedValue({});
+
+			await importJson(
+				vault,
+				{
+					...DEFAULT_SETTINGS,
+					enableInternalLinks: true,
+				},
+				fileManager,
+				importEvents,
+				mockUuidMapStore
+			);
+
+			expect(vault.create.mock.calls[0][1]).toBe(
+				'See [missing](dayone://view?entryId=UNKNOWN) and dayone://view?entryId=ALSO_UNKNOWN'
+			);
+		});
+
+		test('should merge with existing UUID map', async () => {
+			vault.getFileByPath.mockReturnValue(jest.fn() as unknown as TFile);
+			vault.read.mockResolvedValue(
+				JSON.stringify({
+					entries: [
+						{
+							...mockEntry,
+							uuid: 'NEW_ENTRY',
+						},
+					],
+				})
+			);
+			mockUuidMapStore.read.mockResolvedValue({
+				EXISTING: 'existing-file.md',
+			});
+
+			await importJson(
+				vault,
+				{
+					...DEFAULT_SETTINGS,
+					enableInternalLinks: true,
+				},
+				fileManager,
+				importEvents,
+				mockUuidMapStore
+			);
+
+			expect(mockUuidMapStore.write).toHaveBeenCalledWith(
+				expect.objectContaining({
+					EXISTING: 'existing-file.md',
+					NEW_ENTRY: 'NEW_ENTRY.md',
+				})
+			);
+		});
 	});
 });
