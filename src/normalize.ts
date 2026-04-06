@@ -143,15 +143,8 @@ export async function normalizeEntries(
 		uuidMap = {};
 	}
 
-	console.log(
-		`[normalize] Processing ${files.length} files, UUID map has ${Object.keys(uuidMap).length} entries`
-	);
-
 	for (const file of files) {
 		try {
-			console.log(
-				`[normalize] Processing: ${file.path} (exists: ${!!vault.getAbstractFileByPath(file.path)})`
-			);
 			const content = await vault.cachedRead(file);
 			const { frontmatter, body } = splitContent(content);
 
@@ -161,43 +154,26 @@ export async function normalizeEntries(
 			if (match) {
 				const uuid = match[1];
 				const importedFileName = uuidMap[uuid];
-				console.log(
-					`[normalize]   Day One link found, UUID=${uuid}, imported=${importedFileName ?? 'NOT IN MAP'}`
-				);
 
 				if (importedFileName) {
 					if (settings.normalizeConflictResolution === 'keep-imported') {
-						console.log(
-							`[normalize]   Case 1a: keep-imported → deleting migrated`
-						);
+						// Case 1a: Keep imported — delete migrated
 						await vault.delete(file);
 						result.deleted++;
 					} else {
+						// Case 1b: Keep migrated — delete imported, normalize migrated
 						const importedPath = vaultPath(
 							settings.outDirectory,
 							importedFileName
 						);
 						const importedFile = vault.getAbstractFileByPath(importedPath);
-						console.log(
-							`[normalize]   Case 1b: keep-migrated → imported at "${importedPath}" (found: ${!!importedFile})`
-						);
 						if (importedFile && isTFile(importedFile)) {
 							await vault.delete(importedFile as TFile);
 						}
 
-						// Normalize the migrated file
 						const { body: cleanedBody, tags: inlineTags } = normalizeBody(body);
 						await vault.modify(file, joinContent(frontmatter, cleanedBody));
-
-						if (inlineTags.length > 0) {
-							await fileManager.processFrontMatter(file, (fm) => {
-								const existing: string[] = fm['tags'] ?? [];
-								const merged = new Set([...existing, ...inlineTags]);
-								fm['tags'] = Array.from(merged).sort();
-							});
-						}
-
-						// Rename + move
+						await mergeTags(fileManager, file, inlineTags);
 						await renameAndMove(vault, fileManager, file, settings, result);
 						result.normalized++;
 					}
@@ -205,20 +181,11 @@ export async function normalizeEntries(
 					// Case 2: Ghost entry — UUID not in map
 					const { body: cleanedBody, tags: inlineTags } = normalizeBody(body);
 					await vault.modify(file, joinContent(frontmatter, cleanedBody));
-
-					if (inlineTags.length > 0) {
-						await fileManager.processFrontMatter(file, (fm) => {
-							const existing: string[] = fm['tags'] ?? [];
-							const merged = new Set([...existing, ...inlineTags]);
-							fm['tags'] = Array.from(merged).sort();
-						});
-					}
-
+					await mergeTags(fileManager, file, inlineTags);
 					await renameAndMove(vault, fileManager, file, settings, result);
 					result.normalized++;
 				}
 			} else {
-				console.log(`[normalize]   No Day One link — Case 3 (native)`);
 				// Case 3: No Day One link — native entry
 				const { body: cleanedBody, tags: inlineTags } = normalizeBody(body);
 				const finalBody = cleanedBody;
@@ -228,20 +195,12 @@ export async function normalizeEntries(
 					await vault.modify(file, joinContent(frontmatter, finalBody));
 				}
 
-				if (inlineTags.length > 0) {
-					await fileManager.processFrontMatter(file, (fm) => {
-						const existing: string[] = fm['tags'] ?? [];
-						const merged = new Set([...existing, ...inlineTags]);
-						fm['tags'] = Array.from(merged).sort();
-					});
-				}
-
+				await mergeTags(fileManager, file, inlineTags);
 				await renameAndMove(vault, fileManager, file, settings, result);
 				result.normalized++;
 			}
 		} catch (e) {
 			const reason = e instanceof Error ? e.message : String(e);
-			console.error(`[normalize] ERROR on ${file.path}: ${reason}`);
 			result.errors.push({
 				file: file.path,
 				reason,
@@ -251,18 +210,27 @@ export async function normalizeEntries(
 
 	if (result.renameFailures > 0) {
 		new Notice(
-			`${result.renameFailures} notes could not be renamed — missing or unparseable date in frontmatter. Files were moved but kept their original names.`
+			`${result.renameFailures} notes could not be renamed — missing or unparseable date in frontmatter.`
 		);
 	}
 
 	return result;
 }
 
-/**
- * Rename file to match the date-based pattern from settings, then move to vault root.
- * If the date can't be parsed from frontmatter, the file keeps its current name
- * and a rename failure is logged.
- */
+async function mergeTags(
+	fileManager: FileManager,
+	file: TFile,
+	inlineTags: string[]
+): Promise<void> {
+	if (inlineTags.length > 0) {
+		await fileManager.processFrontMatter(file, (fm) => {
+			const existing: string[] = fm['tags'] ?? [];
+			const merged = new Set([...existing, ...inlineTags]);
+			fm['tags'] = Array.from(merged).sort();
+		});
+	}
+}
+
 async function renameAndMove(
 	vault: Vault,
 	fileManager: FileManager,
@@ -270,29 +238,21 @@ async function renameAndMove(
 	settings: DayOneImporterSettings,
 	result: NormalizeResult
 ): Promise<void> {
-	// Read frontmatter date to build target filename
 	let fmDate: string | undefined;
 	await fileManager.processFrontMatter(file, (fm) => {
 		fmDate = fm['date'];
 	});
 
 	const targetName = buildTargetFileName(settings, fmDate, file.name);
-	console.log(
-		`[normalize]   renameAndMove: fmDate=${fmDate}, targetName=${targetName}, currentPath=${file.path}`
-	);
 
 	if (targetName === null) {
 		result.renameFailures++;
 		const newPath = file.name;
-		console.log(
-			`[normalize]   rename FAILED (no date), moving as-is: ${file.path} → ${newPath}`
-		);
 		if (file.path !== newPath) {
 			await vault.rename(file, newPath);
 		}
 	} else {
 		const newPath = targetName;
-		console.log(`[normalize]   rename: ${file.path} → ${newPath}`);
 		if (file.path !== newPath) {
 			await vault.rename(file, newPath);
 		}

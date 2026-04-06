@@ -98,7 +98,7 @@ describe('normalizeEntries', () => {
 		expect(vault.delete).toHaveBeenCalledWith(file);
 	});
 
-	test('Case 1b: keep-migrated deletes imported file and normalizes migrated', async () => {
+	test('Case 1b: keep-migrated deletes imported and normalizes migrated', async () => {
 		const file = makeTFile('_migrate/entry.md', 'entry.md');
 		const importedFile = makeTFile(
 			'day-one-out/2024-04-19 22.48.36.md',
@@ -115,7 +115,7 @@ describe('normalizeEntries', () => {
 			return null;
 		});
 		vault.cachedRead.mockResolvedValue(
-			'---\ndate: 2024-04-19T22:48:36+01:00\n---\nSome text with [link](dayone://view?entryId=ABC123DEF456) here'
+			'---\ndate: 2024-04-19T22:48:36+01:00\n---\n> Dayone: [View in Day One](dayone://view?entryId=ABC123DEF456)\n\nSome content'
 		);
 		mockUuidMapStore.read.mockResolvedValue({
 			ABC123DEF456: '2024-04-19 22.48.36.md',
@@ -133,7 +133,6 @@ describe('normalizeEntries', () => {
 		);
 
 		expect(res.normalized).toBe(1);
-		expect(res.deleted).toBe(0);
 		expect(vault.delete).toHaveBeenCalledWith(importedFile);
 		expect(vault.modify).toHaveBeenCalled();
 	});

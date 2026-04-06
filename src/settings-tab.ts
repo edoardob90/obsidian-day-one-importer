@@ -149,26 +149,6 @@ export class SettingsTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Localized date')
-			.setDesc(
-				'Choose which time zone to use for the localized date. This setting affects both the frontmatter field and the file name (if date-based file names are enabled).'
-			)
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption('none', 'Ignore')
-					.addOption('event', 'Original event time zone')
-					.addOption('local', 'System local time zone')
-					.setValue(this.plugin.settings.localizedDateMode)
-					.onChange(async (value) => {
-						this.plugin.settings.localizedDateMode = value as
-							| 'none'
-							| 'event'
-							| 'local';
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
 			.setName('Internal links')
 			.setDesc(
 				'Enable/disable replacing Day One internal links (dayone://view?entryId=UUID) with Obsidian links.'

@@ -15,7 +15,6 @@ export const DayOneItemSchema = z.object({
 	timeZone: z.string().refine((tz) => IANAZone.isValidZone(tz), {
 		message: 'Invalid IANA timezone',
 	}),
-	localizedDate: z.string().nullish(),
 	isAllDay: z.boolean().optional(),
 	isPinned: z.boolean().optional(),
 	starred: z.boolean().optional(),

@@ -24,19 +24,10 @@ export function buildFileName(
 	item: DayOneItem
 ) {
 	if (settings.dateBasedFileNames) {
-		let dt: DateTime;
-		if (settings.localizedDateMode === 'event' && item.timeZone) {
-			// Use the entry's original timezone
-			dt = DateTime.fromISO(item.creationDate, {
-				zone: item.timeZone,
-			});
-		} else if (settings.localizedDateMode === 'local') {
-			// Use system local timezone
-			dt = DateTime.fromISO(item.creationDate).toLocal();
-		} else {
-			// 'none': use UTC as-is
-			dt = DateTime.fromISO(item.creationDate, { zone: 'utc' });
-		}
+		// Always use the entry's original timezone
+		const dt = DateTime.fromISO(item.creationDate, {
+			zone: item.timeZone,
+		});
 		if (item.isAllDay) {
 			return normalizePath(
 				`${dt.toFormat(settings.dateBasedAllDayFileNameFormat)}.md`
@@ -212,23 +203,6 @@ export async function collectDayOneEntries(
 						transformTag(tag, settings.tagStyle)
 					);
 				}
-
-				// Add localizedDate if timeZone is valid
-				let localizedDate: string | null = null;
-				if (settings.localizedDateMode === 'event') {
-					localizedDate = DateTime.fromISO(item.creationDate, {
-						zone: item.timeZone,
-					})
-						.setZone(item.timeZone)
-						.toISO({ includeOffset: false });
-				} else if (settings.localizedDateMode === 'local') {
-					localizedDate = DateTime.fromISO(item.creationDate, {
-						zone: 'utc',
-					})
-						.setZone(DateTime.local().zone)
-						.toISO({ includeOffset: false });
-				}
-				item.localizedDate = localizedDate;
 
 				// Add the entry to the list
 				allEntries.push({ item, fileName: jsonFileName });

@@ -29,7 +29,6 @@ export interface DayOneImporterSettings {
 	dateBasedFileNames: boolean;
 	dateBasedFileNameFormat: string;
 	dateBasedAllDayFileNameFormat: string;
-	localizedDateMode: 'none' | 'event' | 'local';
 	ignoreExistingFiles: boolean;
 	separateCoordinateFields: boolean;
 	enableInternalLinks: boolean;
@@ -47,7 +46,6 @@ export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 	dateBasedFileNames: false,
 	dateBasedFileNameFormat: 'yyyy-MM-dd HHmmss',
 	dateBasedAllDayFileNameFormat: 'yyyy-MM-dd',
-	localizedDateMode: 'none',
 	ignoreExistingFiles: false,
 	separateCoordinateFields: false,
 	enableInternalLinks: false,
@@ -162,10 +160,7 @@ export default class DayOneImporter extends Plugin {
 							);
 							new Notice(
 								`Normalize results:\n` +
-									`Deleted: ${res.deleted}\nNormalized: ${res.normalized}\nSkipped: ${res.skipped}\nErrors: ${res.errors.length}` +
-									(res.renameFailures > 0
-										? `\nRename failures: ${res.renameFailures}`
-										: '')
+									`Deleted: ${res.deleted}\nNormalized: ${res.normalized}\nErrors: ${res.errors.length}`
 							);
 						} catch (err) {
 							new Notice(err instanceof Error ? err.message : String(err));
