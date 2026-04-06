@@ -13,9 +13,7 @@ import { importJson } from './import-json';
 import { updateFrontMatter } from './update-front-matter';
 import { isIllegalFileName, ILLEGAL_FILENAME_CHARACTERS } from './utils';
 
-const ILLEGAL_FILENAME_CHARACTERS_FOR_NOTICE = [
-	...ILLEGAL_FILENAME_CHARACTERS,
-];
+const ILLEGAL_FILENAME_CHARACTERS_FOR_NOTICE = [...ILLEGAL_FILENAME_CHARACTERS];
 
 export class SettingsTab extends PluginSettingTab {
 	plugin: DayOneImporter;
@@ -281,7 +279,7 @@ export class SettingsTab extends PluginSettingTab {
 						);
 						await this.plugin.handleImportResult(res, 'import');
 					} catch (err) {
-						new Notice(err);
+						new Notice(err instanceof Error ? err.message : String(err));
 					} finally {
 						button.setDisabled(false);
 					}
@@ -319,7 +317,7 @@ export class SettingsTab extends PluginSettingTab {
 						);
 						await this.plugin.handleImportResult(res, 'update');
 					} catch (err) {
-						new Notice(err);
+						new Notice(err instanceof Error ? err.message : String(err));
 					} finally {
 						button.setDisabled(false);
 					}

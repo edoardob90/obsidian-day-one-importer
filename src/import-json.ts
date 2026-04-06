@@ -95,8 +95,9 @@ export async function importJson(
 				await writeFrontMatter(file, item, settings, fileManager);
 				successCount++;
 			} catch (e) {
+				const message = e instanceof Error ? e.message : String(e);
 				if (
-					e.message === 'File already exists.' &&
+					message === 'File already exists.' &&
 					settings.ignoreExistingFiles
 				) {
 					ignoreCount++;
@@ -104,7 +105,7 @@ export async function importJson(
 					console.error(e);
 					failures.push({
 						entry: item,
-						reason: e.message,
+						reason: message,
 					});
 				}
 			}
