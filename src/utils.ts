@@ -7,14 +7,16 @@ import { DayOneItemSchema } from './schema';
 import { DateTime } from 'luxon';
 
 export const ILLEGAL_FILENAME_CHARACTERS = [
-	'[',
-	']',
 	':',
 	'\\',
 	'/',
 	'^',
 	'|',
 	'#',
+	// Paired square brackets are illegal (single brackets are handled by the
+	// unpaired bracket check in isIllegalFileName)
+	'[[',
+	']]',
 ];
 
 export function buildFileName(
@@ -56,9 +58,13 @@ export type ImportResult = {
 	invalidEntries: ImportInvalidEntry[];
 };
 
+const UNPAIRED_SQUARE_BRACKET_REGEX = new RegExp('(\\[[^\\]]*$)|(^[^\\[]*])');
+
 export function isIllegalFileName(fileName: string): boolean {
-	return ILLEGAL_FILENAME_CHARACTERS.some((illegal) =>
-		fileName.contains(illegal)
+	return (
+		ILLEGAL_FILENAME_CHARACTERS.some((illegal) =>
+			fileName.contains(illegal)
+		) || UNPAIRED_SQUARE_BRACKET_REGEX.test(fileName)
 	);
 }
 

@@ -13,6 +13,10 @@ import { importJson } from './import-json';
 import { updateFrontMatter } from './update-front-matter';
 import { isIllegalFileName, ILLEGAL_FILENAME_CHARACTERS } from './utils';
 
+const ILLEGAL_FILENAME_CHARACTERS_FOR_NOTICE = [
+	...ILLEGAL_FILENAME_CHARACTERS,
+];
+
 export class SettingsTab extends PluginSettingTab {
 	plugin: DayOneImporter;
 
@@ -179,7 +183,7 @@ export class SettingsTab extends PluginSettingTab {
 						if (value !== '') {
 							if (isIllegalFileName(value)) {
 								new Notice(
-									`File name cannot contain any of the following characters: ${ILLEGAL_FILENAME_CHARACTERS.join('')}`
+									`File name cannot contain any of the following characters: ${ILLEGAL_FILENAME_CHARACTERS_FOR_NOTICE.join('')} or unpaired square brackets`
 								);
 							} else {
 								this.plugin.settings.dateBasedFileNameFormat =
@@ -202,7 +206,7 @@ export class SettingsTab extends PluginSettingTab {
 						if (value !== '') {
 							if (isIllegalFileName(value)) {
 								new Notice(
-									`File name cannot contain any of the following characters: ${ILLEGAL_FILENAME_CHARACTERS.join('')}`
+									`File name cannot contain any of the following characters: ${ILLEGAL_FILENAME_CHARACTERS_FOR_NOTICE.join('')} or unpaired square brackets`
 								);
 							} else {
 								this.plugin.settings.dateBasedAllDayFileNameFormat =
