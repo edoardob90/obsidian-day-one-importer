@@ -84,7 +84,7 @@ export async function updateFrontMatter(
 				console.error(e);
 				failures.push({
 					entry: item,
-					reason: e.message,
+					reason: e instanceof Error ? e.message : String(e),
 				});
 			}
 

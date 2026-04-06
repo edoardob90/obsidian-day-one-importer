@@ -40,11 +40,11 @@ export const DEFAULT_SETTINGS: DayOneImporterSettings = {
 };
 
 export default class DayOneImporter extends Plugin {
-	settings: DayOneImporterSettings;
+	settings!: DayOneImporterSettings;
 	importEvents = new Events();
-	percentageImportRef: EventRef;
-	percentageUpdateRef: EventRef;
-	uuidMapStore: UuidMapStoreImpl;
+	percentageImportRef!: EventRef;
+	percentageUpdateRef!: EventRef;
+	uuidMapStore!: UuidMapStoreImpl;
 
 	async onload() {
 		await this.loadSettings();
