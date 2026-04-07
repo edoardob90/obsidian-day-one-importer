@@ -1,6 +1,6 @@
-# Obsidian Day One Importer
+# Obsidian Day One Importer (Custom Fork)
 
-![GitHub Release](https://img.shields.io/github/v/release/marcdonald/obsidian-day-one-importer)
+> A heavily customized fork of [MarcDonald/obsidian-day-one-importer](https://github.com/MarcDonald/obsidian-day-one-importer) with Luxon-based timezone support, PDF attachments, configurable tag styles, entry normalization, Zod schema validation, and refactored frontmatter format.
 
 Easily convert your Day One journals into Obsidian markdown.
 
@@ -54,6 +54,15 @@ Easily convert your Day One journals into Obsidian markdown.
 - Location (name & coordinates)
 - Activity (e.g. walking, cycling, train, flying, etc)
 
+### Fork-specific features
+
+- **Luxon timezone support**: Dates use the entry's original timezone (replaces moment)
+- **PDF attachments**: Full support for imported PDF files
+- **Configurable tag styles**: camelCase, snake_case, kebab-case, etc.
+- **Normalize command**: Scans imported entries, deletes duplicates, and cleans ghost files
+- **Zod schema validation**: Runtime validation of Day One JSON structure
+- **Refactored frontmatter**: Cleaner, more consistent frontmatter format
+
 ### Not Currently Planned
 
 - Customizable metadata formats (i.e not in frontmatter)
@@ -62,3 +71,4 @@ Easily convert your Day One journals into Obsidian markdown.
 ## OSS
 
 - [Zod](https://zod.dev/): MIT License
+- [Luxon](https://moment.github.io/luxon/): MIT License

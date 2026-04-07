@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-An Obsidian plugin that imports Day One journal exports (JSON) into Obsidian as markdown notes with frontmatter. Supports photos, videos, audio, PDFs, internal link resolution, tag formatting, and timezone-aware dates.
+A heavily customized fork of [MarcDonald/obsidian-day-one-importer](https://github.com/MarcDonald/obsidian-day-one-importer). This is the `custom` branch — the primary working branch with all fork-specific features.
+
+An Obsidian plugin that imports Day One journal exports (JSON) into Obsidian as markdown notes with frontmatter. Compared to upstream, this fork adds: Luxon-based timezone-aware dates (replacing moment), PDF attachment support, configurable tag styles (camelCase, snake_case, etc.), a normalize command (dedup entries, clean ghost files), refactored frontmatter format, and Zod schema validation.
 
 ## Commands
 
@@ -52,11 +54,11 @@ main.ts (Plugin entry point, settings, lifecycle, commands: import/resolve-links
 ## Branch Structure
 
 - `main` — tracks upstream (`MarcDonald/obsidian-day-one-importer`) exactly
-- `custom` — fork's working branch with all custom features (luxon, PDF support, tag styles, etc.)
+- `custom` — **primary branch** — fork's working branch with all custom features
 - `feature/*` — feature branches for PRs against upstream, branched from `main`
 
 ## Key Dependencies
 
 - **zod**: Runtime schema validation for Day One JSON
-- **luxon**: Date/timezone handling (on `custom` branch; `feature/*` branches targeting upstream use `moment` from `'obsidian'`)
+- **luxon**: Date/timezone handling (replaces upstream's use of `moment` from `'obsidian'`)
 - Obsidian API externalized at build time (esbuild)
